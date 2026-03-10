@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.VectorMappingMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.VectorMapping">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="chunk_id" property="chunkId"/>
+        <result column="vector_id" property="vectorId"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectVectorIdsByVideoId" resultType="string">
+        SELECT vector_id
+        FROM vector_mapping
+        WHERE video_id = #{videoId}
+    </select>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vector_mapping (user_id, video_id, chunk_id, vector_id, create_time)
+        VALUES
+        <foreach collection="mappings" item="mapping" separator=",">
+            (#{mapping.userId}, #{mapping.videoId}, #{mapping.chunkId}, #{mapping.vectorId}, #{mapping.createTime})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByVideoId">
+        DELETE FROM vector_mapping WHERE video_id = #{videoId}
+    </delete>
+
+</mapper>

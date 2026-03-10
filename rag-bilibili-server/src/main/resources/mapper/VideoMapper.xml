@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.VideoMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.Video">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="bvid" property="bvid"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="import_time" property="importTime"/>
+        <result column="status" property="status"/>
+        <result column="fail_reason" property="failReason"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, user_id, bvid, title, description, import_time, status, fail_reason
+        FROM video
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByUserIdAndBvid" resultMap="BaseResultMap">
+        SELECT id, user_id, bvid, title, description, import_time, status, fail_reason
+        FROM video
+        WHERE user_id = #{userId} AND bvid = #{bvid}
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT id, user_id, bvid, title, description, import_time, status, fail_reason
+        FROM video
+        WHERE user_id = #{userId}
+        ORDER BY import_time DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video (user_id, bvid, title, description, import_time, status, fail_reason)
+        VALUES (#{userId}, #{bvid}, #{title}, #{description}, #{importTime}, #{status}, #{failReason})
+    </insert>
+
+    <update id="update">
+        UPDATE video
+        SET title = #{title},
+            description = #{description},
+            status = #{status},
+            fail_reason = #{failReason}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM video WHERE id = #{id}
+    </delete>
+
+</mapper>

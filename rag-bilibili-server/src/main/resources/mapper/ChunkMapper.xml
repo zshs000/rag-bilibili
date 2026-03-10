@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.ChunkMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.Chunk">
+        <id column="id" property="id"/>
+        <result column="video_id" property="videoId"/>
+        <result column="user_id" property="userId"/>
+        <result column="bvid" property="bvid"/>
+        <result column="title" property="title"/>
+        <result column="chunk_index" property="chunkIndex"/>
+        <result column="total_chunks" property="totalChunks"/>
+        <result column="chunk_text" property="chunkText"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, video_id, user_id, bvid, title, chunk_index, total_chunks, chunk_text, create_time
+        FROM chunk
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByVideoId" resultMap="BaseResultMap">
+        SELECT id, video_id, user_id, bvid, title, chunk_index, total_chunks, chunk_text, create_time
+        FROM chunk
+        WHERE video_id = #{videoId}
+        ORDER BY chunk_index ASC
+    </select>
+
+    <select id="countByVideoId" resultType="int">
+        SELECT COUNT(*)
+        FROM chunk
+        WHERE video_id = #{videoId}
+    </select>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chunk (video_id, user_id, bvid, title, chunk_index, total_chunks, chunk_text, create_time)
+        VALUES
+        <foreach collection="chunks" item="chunk" separator=",">
+            (#{chunk.videoId}, #{chunk.userId}, #{chunk.bvid}, #{chunk.title}, #{chunk.chunkIndex}, #{chunk.totalChunks}, #{chunk.chunkText}, #{chunk.createTime})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByVideoId">
+        DELETE FROM chunk WHERE video_id = #{videoId}
+    </delete>
+
+</mapper>
