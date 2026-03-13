@@ -3,6 +3,7 @@ package com.example.ragbilibili.exception;
 import com.example.ragbilibili.common.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +15,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /**
+     * 处理数据库唯一键冲突
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<?> handleDuplicateKeyException(DuplicateKeyException e) {
+        logger.warn("唯一键冲突: {}", e.getMessage());
+        return Result.error(ErrorCode.USER_ALREADY_EXISTS.getCode(), "用户名已存在");
+    }
 
     /**
      * 处理业务异常

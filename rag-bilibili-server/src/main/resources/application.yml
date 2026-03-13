@@ -60,6 +60,9 @@ server:
     session:
       timeout: 30m
 
+register:
+  enabled: true
+
 logging:
   level:
     com.example.ragbilibili: INFO

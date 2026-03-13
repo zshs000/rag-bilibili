@@ -120,6 +120,13 @@
             <version>1.0.21</version>
         </dependency>
 
+        <!-- Bucket4j 限流 -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.10.1</version>
+        </dependency>
+
         <!-- jBCrypt 密码加密 -->
         <dependency>
             <groupId>org.mindrot</groupId>

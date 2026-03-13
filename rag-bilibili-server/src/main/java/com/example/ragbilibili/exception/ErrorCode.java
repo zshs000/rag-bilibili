@@ -14,6 +14,8 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS(1002, "用户已存在"),
     PASSWORD_ERROR(1003, "密码错误"),
     NOT_LOGGED_IN(1004, "未登录"),
+    REGISTER_DISABLED(1005, "管理员未开启注册"),
+    RATE_LIMIT_EXCEEDED(1006, "操作过于频繁，请稍后再试"),
 
     // 视频相关
     VIDEO_NOT_FOUND(2001, "视频不存在"),
