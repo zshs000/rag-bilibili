@@ -53,11 +53,8 @@ jobs:
           # 停止旧进程
           pkill -f rag-bilibili-server-1.0.0.jar || true
           sleep 2
-          # 启动新进程，完全脱离 SSH 会话
-          nohup java -Xmx768m \
-            -jar /opt/rag-bilibili/rag-bilibili-server-1.0.0.jar \
-            > /opt/rag-bilibili/app.log 2>&1 </dev/null &
-          disown
-          sleep 3
+          # 用 setsid 创建新进程组，完全脱离当前会话
+          setsid bash -c 'nohup java -Xmx768m -jar /opt/rag-bilibili/rag-bilibili-server-1.0.0.jar > /opt/rag-bilibili/app.log 2>&1 &'
+          sleep 5
           # 验证进程是否启动
           pgrep -f rag-bilibili-server-1.0.0.jar && echo "Deploy success" || echo "Deploy failed"
