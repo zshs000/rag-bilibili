@@ -65,13 +65,13 @@ const renderedHtml = computed(() => {
 
 .markdown-content :deep(h1) {
   font-size: 1.8em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   padding-bottom: 0.3em;
 }
 
 .markdown-content :deep(h2) {
   font-size: 1.5em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   padding-bottom: 0.3em;
 }
 
@@ -94,15 +94,17 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(code) {
-  background-color: #f3f4f6;
+  background-color: rgba(255, 255, 255, 0.08);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 0.9em;
+  color: #ff6b35;
 }
 
 .markdown-content :deep(pre) {
-  background-color: #f3f4f6;
+  background-color: rgba(26, 31, 46, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1em;
   border-radius: 5px;
   overflow-x: auto;
@@ -115,15 +117,15 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(blockquote) {
-  border-left: 4px solid #e5e7eb;
+  border-left: 4px solid rgba(255, 107, 53, 0.5);
   padding-left: 1em;
   margin-left: 0;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.6);
   margin-bottom: 1em;
 }
 
 .markdown-content :deep(a) {
-  color: #3b82f6;
+  color: #4a90e2;
   text-decoration: none;
 }
 
@@ -139,13 +141,13 @@ const renderedHtml = computed(() => {
 
 .markdown-content :deep(th),
 .markdown-content :deep(td) {
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 0.5em;
   text-align: left;
 }
 
 .markdown-content :deep(th) {
-  background-color: #f3f4f6;
+  background-color: rgba(255, 255, 255, 0.05);
   font-weight: 600;
 }
 
@@ -156,7 +158,41 @@ const renderedHtml = computed(() => {
 
 .markdown-content :deep(hr) {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
   margin: 1.5em 0;
+}
+
+/* Light Theme Overrides */
+:root[data-theme="light"] .markdown-content :deep(h1),
+:root[data-theme="light"] .markdown-content :deep(h2) {
+  border-bottom-color: #e5e7eb;
+}
+
+:root[data-theme="light"] .markdown-content :deep(code) {
+  background-color: #f3f4f6;
+  color: #ff6b35;
+}
+
+:root[data-theme="light"] .markdown-content :deep(pre) {
+  background-color: #f3f4f6;
+  border-color: #e5e7eb;
+}
+
+:root[data-theme="light"] .markdown-content :deep(blockquote) {
+  border-left-color: #e5e7eb;
+  color: #6b7280;
+}
+
+:root[data-theme="light"] .markdown-content :deep(th),
+:root[data-theme="light"] .markdown-content :deep(td) {
+  border-color: #e5e7eb;
+}
+
+:root[data-theme="light"] .markdown-content :deep(th) {
+  background-color: #f3f4f6;
+}
+
+:root[data-theme="light"] .markdown-content :deep(hr) {
+  border-top-color: #e5e7eb;
 }
 </style>

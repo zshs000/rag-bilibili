@@ -34,6 +34,11 @@
       </nav>
 
       <div class="nav-footer">
+        <button class="theme-toggle-button" @click="toggleTheme">
+          <el-icon v-if="theme === 'dark'"><Sunny /></el-icon>
+          <el-icon v-else><Moon /></el-icon>
+          <span>{{ theme === 'dark' ? '浅色模式' : '深色模式' }}</span>
+        </button>
         <button class="logout-button" @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
           <span>退出登录</span>
@@ -68,12 +73,15 @@
 </template>
 
 <script setup>
-import { ChatDotRound, Collection, Download, SwitchButton } from "@element-plus/icons-vue";
+import { ChatDotRound, Collection, Download, SwitchButton, Sunny, Moon } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { RouterLink, useRouter } from "vue-router";
 
 import { useAuthStore } from "../stores/auth";
+import { useTheme } from "../composables/useTheme";
 import { notifyError } from "../utils/error";
+
+const { theme, toggleTheme } = useTheme();
 
 defineProps({
   eyebrow: {
@@ -117,6 +125,10 @@ async function handleLogout() {
   background: #0f1419;
 }
 
+:root[data-theme="light"] .app-shell {
+  background: #ffffff;
+}
+
 /* Sidebar */
 .app-sidebar {
   width: 280px;
@@ -130,6 +142,12 @@ async function handleLogout() {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="light"] .app-sidebar {
+  background: rgba(255, 255, 255, 0.9);
+  border-right-color: rgba(255, 107, 53, 0.14);
 }
 
 .nav-brand {
@@ -171,11 +189,21 @@ async function handleLogout() {
   color: #ffffff;
   font-size: 1.125rem;
   font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .nav-brand-text strong {
+  color: #1a1f2e;
 }
 
 .nav-brand-subtitle {
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.75rem;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .nav-brand-subtitle {
+  color: #53657f;
 }
 
 .user-card {
@@ -187,6 +215,12 @@ async function handleLogout() {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="light"] .user-card {
+  background: rgba(255, 107, 53, 0.08);
+  border-color: rgba(255, 107, 53, 0.14);
 }
 
 .user-avatar {
@@ -216,11 +250,21 @@ async function handleLogout() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .user-name {
+  color: #1a1f2e;
 }
 
 .user-status {
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.75rem;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .user-status {
+  color: #53657f;
 }
 
 .nav-links {
@@ -242,15 +286,29 @@ async function handleLogout() {
   font-size: 0.9375rem;
 }
 
+:root[data-theme="light"] .nav-link {
+  color: #53657f;
+}
+
 .nav-link:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #ffffff;
+}
+
+:root[data-theme="light"] .nav-link:hover {
+  background: rgba(255, 107, 53, 0.08);
+  color: #1a1f2e;
 }
 
 .nav-link.router-link-active {
   background: linear-gradient(135deg, rgba(255, 107, 53, 0.15) 0%, rgba(247, 147, 30, 0.15) 100%);
   border: 1px solid rgba(255, 107, 53, 0.3);
   color: #ff6b35;
+}
+
+:root[data-theme="light"] .nav-link.router-link-active {
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.12) 0%, rgba(247, 147, 30, 0.12) 100%);
+  border-color: rgba(255, 107, 53, 0.3);
 }
 
 .nav-icon {
@@ -265,6 +323,48 @@ async function handleLogout() {
   margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 0.3s ease;
+}
+
+:root[data-theme="light"] .nav-footer {
+  border-top-color: rgba(255, 107, 53, 0.14);
+}
+
+.theme-toggle-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="light"] .theme-toggle-button {
+  background: rgba(255, 107, 53, 0.05);
+  border-color: rgba(255, 107, 53, 0.14);
+  color: #53657f;
+}
+
+.theme-toggle-button:hover {
+  background: rgba(255, 107, 53, 0.1);
+  border-color: rgba(255, 107, 53, 0.3);
+  color: #ff6b35;
+}
+
+:root[data-theme="light"] .theme-toggle-button:hover {
+  background: rgba(255, 107, 53, 0.12);
+  color: #ff6b35;
 }
 
 .logout-button {
@@ -284,9 +384,20 @@ async function handleLogout() {
   transition: all 0.3s ease;
 }
 
+:root[data-theme="light"] .logout-button {
+  background: rgba(255, 107, 53, 0.05);
+  border-color: rgba(255, 107, 53, 0.14);
+  color: #53657f;
+}
+
 .logout-button:hover {
   background: rgba(255, 107, 53, 0.1);
   border-color: rgba(255, 107, 53, 0.3);
+  color: #ff6b35;
+}
+
+:root[data-theme="light"] .logout-button:hover {
+  background: rgba(255, 107, 53, 0.12);
   color: #ff6b35;
 }
 
@@ -312,6 +423,11 @@ async function handleLogout() {
   filter: blur(120px);
   opacity: 0.15;
   animation: float 25s ease-in-out infinite;
+  transition: opacity 0.3s ease;
+}
+
+:root[data-theme="light"] .gradient-orb {
+  opacity: 0.08;
 }
 
 .orb-1 {
@@ -350,6 +466,12 @@ async function handleLogout() {
   background: rgba(26, 31, 46, 0.6);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="light"] .page-header {
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom-color: rgba(255, 107, 53, 0.14);
 }
 
 .header-content {
@@ -383,6 +505,11 @@ async function handleLogout() {
   color: #ffffff;
   margin-bottom: 0.5rem;
   line-height: 1.2;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .header-title {
+  color: #1a1f2e;
 }
 
 .header-subtitle {
@@ -390,6 +517,11 @@ async function handleLogout() {
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.5;
   max-width: 600px;
+  transition: color 0.3s ease;
+}
+
+:root[data-theme="light"] .header-subtitle {
+  color: #53657f;
 }
 
 .header-actions {
@@ -404,6 +536,12 @@ async function handleLogout() {
   flex: 1;
   padding: 2rem 3rem;
   overflow-y: auto;
+  background: transparent;
+  transition: background-color 0.3s ease;
+}
+
+:root[data-theme="light"] .page-content {
+  background: transparent;
 }
 
 /* Element Plus Overrides */
