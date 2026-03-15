@@ -29,13 +29,3 @@ jobs:
     - name: Build
       run: npm run build
 
-    - name: Upload dist to ECS
-      if: github.event_name == 'push'
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.ECS_HOST }}
-        username: ${{ secrets.ECS_USER }}
-        key: ${{ secrets.ECS_SSH_KEY }}
-        source: "rag-bilibili-front/dist"
-        target: "/opt/rag-bilibili/"
-        strip_components: 1
