@@ -1,10 +1,4 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support documentation.
-
+# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve workflow execution time
 name: Java CI with Maven
 
 on:
@@ -26,9 +20,11 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
+    # 1. 打包项目（生成jar）
     - name: Build with Maven
       run: mvn -B package --file rag-bilibili-server/pom.xml
 
+    # 2. 仅上传jar到服务器 → 不做任何启动操作！
     - name: Upload jar to ECS
       if: github.event_name == 'push'
       uses: appleboy/scp-action@v0.1.7
@@ -40,7 +36,8 @@ jobs:
         target: "/opt/rag-bilibili/"
         strip_components: 2
 
-    - name: Deploy to ECS
+    # 3. 仅提示上传完成，不操作服务
+    - name: Upload Finished
       if: github.event_name == 'push'
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -48,28 +45,4 @@ jobs:
         username: ${{ secrets.ECS_USER }}
         key: ${{ secrets.ECS_SSH_KEY }}
         script: |
-          bash -c '
-            # 加载全局环境变量
-            source /etc/profile;
-            
-            # 停止旧服务
-            pkill -f "rag-bilibili-server-1.0.0.jar" 2>/dev/null || true;
-            sleep 3;
-            
-            # 后台启动服务（永久运行，脱离SSH）
-            cd /opt/rag-bilibili;
-            nohup java -Xmx768m -jar rag-bilibili-server-1.0.0.jar > app.log 2>&1 &
-            disown;
-            
-            # 等待启动
-            sleep 6;
-            
-            # 校验结果
-            if pgrep -f "rag-bilibili-server-1.0.0.jar" > /dev/null; then
-              echo " 部署成功！环境变量已正常加载"
-              exit 0;
-            else
-              echo " 部署失败！查看日志：cat /opt/rag-bilibili/app.log"
-              exit 1;
-            fi
-          '
+          echo "✅ JAR包上传完成！请手动在服务器启动服务"
