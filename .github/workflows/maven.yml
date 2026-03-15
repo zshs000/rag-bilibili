@@ -1,5 +1,5 @@
 # This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-testing-java-with-maven
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -16,7 +16,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -27,11 +26,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+
     - name: Build with Maven
       run: mvn -B package --file rag-bilibili-server/pom.xml
 
     - name: Upload jar to ECS
-      # 仅 push 到 master 时部署，PR 只构建不部署
       if: github.event_name == 'push'
       uses: appleboy/scp-action@v0.1.7
       with:
@@ -50,11 +49,24 @@ jobs:
         username: ${{ secrets.ECS_USER }}
         key: ${{ secrets.ECS_SSH_KEY }}
         script: |
-          # 停止旧进程
-          pkill -f rag-bilibili-server-1.0.0.jar || true
-          sleep 2
-          # 用 setsid 创建新进程组，完全脱离当前会话
-          setsid bash -c 'nohup java -Xmx768m -jar /opt/rag-bilibili/rag-bilibili-server-1.0.0.jar > /opt/rag-bilibili/app.log 2>&1 &'
-          sleep 5
-          # 验证进程是否启动
-          pgrep -f rag-bilibili-server-1.0.0.jar && echo "Deploy success" || echo "Deploy failed"
+          # 1. 加载全局环境变量（数据库/AI密钥/向量库配置 全部生效）
+          source /etc/profile
+          
+          # 2. 强制停止旧服务，忽略错误
+          pkill -f 'rag-bilibili-server-1.0.0.jar' 2>/dev/null || true
+          sleep 3
+          
+          # 3. 标准后台启动（永久运行，断开SSH不会关闭）
+          cd /opt/rag-bilibili
+          nohup java -Xmx768m -jar rag-bilibili-server-1.0.0.jar > app.log 2>&1 &
+          
+          # 4. 等待服务启动完成
+          sleep 6
+          
+          # 5. 校验是否启动成功
+          if pgrep -f 'rag-bilibili-server-1.0.0.jar' > /dev/null; then
+            echo "✅ 部署成功！服务已在后台持续运行"
+          else
+            echo "❌ 部署失败！请查看日志: cat /opt/rag-bilibili/app.log"
+            exit 1
+          fi
