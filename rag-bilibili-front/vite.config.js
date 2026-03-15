@@ -4,21 +4,19 @@ import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const proxyTarget = env.VITE_PROXY_TARGET || "http://localhost:8080";
 
   return {
-    plugins: [
-      vue(),
-      AutoImport({
-        imports: ["vue", "vue-router"],
-        resolvers: [ElementPlusResolver({ directives: true })],
-      }),
-      Components({
-        resolvers: [ElementPlusResolver({ directives: true })],
-      }),
-    ],
+    plugins: [vue(), AutoImport({
+      imports: ["vue", "vue-router"],
+      resolvers: [ElementPlusResolver({ directives: true })],
+    }), Components({
+      resolvers: [ElementPlusResolver({ directives: true })],
+    }), cloudflare()],
     server: {
       host: "0.0.0.0",
       port: 5173,
