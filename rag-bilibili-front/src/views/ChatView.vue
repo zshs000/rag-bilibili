@@ -82,7 +82,6 @@
                 resize="none"
                 maxlength="2000"
                 show-word-limit
-                placeholder="例如：这个视频讲了什么？删除视频时会清理哪些数据？"
               />
             </el-form-item>
             <div class="toolbar">
