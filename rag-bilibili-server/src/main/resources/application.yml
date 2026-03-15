@@ -59,6 +59,9 @@ server:
   servlet:
     session:
       timeout: 30m
+      cookie:
+        same-site: none
+        secure: true
 
 register:
   enabled: true
