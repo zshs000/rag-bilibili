@@ -27,7 +27,6 @@ export const messagesApi = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      credentials: "include",
       body: JSON.stringify(payload),
       signal,
     });
