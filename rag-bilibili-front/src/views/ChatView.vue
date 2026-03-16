@@ -82,6 +82,7 @@
                 resize="none"
                 maxlength="2000"
                 show-word-limit
+                placeholder="例如：这个视频讲了什么？"
               />
             </el-form-item>
             <div class="toolbar">
