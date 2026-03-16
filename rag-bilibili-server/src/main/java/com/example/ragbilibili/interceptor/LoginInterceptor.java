@@ -4,6 +4,7 @@ import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.util.JwtUtil;
 import com.example.ragbilibili.util.UserContext;
+import io.jsonwebtoken.JwtException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -34,7 +35,7 @@ public class LoginInterceptor implements HandlerInterceptor {
         Long userId;
         try {
             userId = jwtUtil.parseUserId(token);
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.NOT_LOGGED_IN);
         }
         UserContext.set(userId);
