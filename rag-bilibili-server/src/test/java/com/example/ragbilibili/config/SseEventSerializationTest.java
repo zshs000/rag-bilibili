@@ -1,5 +1,9 @@
-package com.example.ragbilibili.dto.sse;
+package com.example.ragbilibili.config;
 
+import com.example.ragbilibili.dto.sse.SseContentEvent;
+import com.example.ragbilibili.dto.sse.SseEndEvent;
+import com.example.ragbilibili.dto.sse.SseErrorEvent;
+import com.example.ragbilibili.dto.sse.SseStartEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
