@@ -14,6 +14,7 @@ import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.*;
 import com.example.ragbilibili.service.VideoService;
+import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import com.example.ragbilibili.util.BVIDParser;
 import com.example.ragbilibili.util.VectorIDGenerator;
 import org.slf4j.Logger;
@@ -34,6 +35,8 @@ import java.util.stream.Collectors;
 @Service
 public class VideoServiceImpl implements VideoService {
     private static final Logger log = LoggerFactory.getLogger(VideoServiceImpl.class);
+    private static final String TRANSCRIPT_MARKER = "Transcript:";
+    private static final String SUBTITLE_SEGMENT_COUNT = "subtitle_segment_count";
 
     @Autowired
     private VideoMapper videoMapper;
@@ -52,6 +55,9 @@ public class VideoServiceImpl implements VideoService {
 
     @Autowired
     private TokenTextSplitter tokenTextSplitter;
+
+    @Autowired
+    private SubtitleCleaningTransformer subtitleCleaningTransformer;
 
     @Autowired
     private DashVectorStore dashVectorStore;
@@ -94,7 +100,13 @@ public class VideoServiceImpl implements VideoService {
             String videoTitle = (String) document.getMetadata().get("title");
             String videoDescription = (String) document.getMetadata().get("description");
 
-            // 4. 创建视频记录（状态：IMPORTING）
+            // 4. 先清洗自动字幕，清洗后若已无有效字幕则直接返回无字幕错误
+            List<Document> cleanedDocuments = subtitleCleaningTransformer.apply(documents);
+            if (!hasUsableSubtitleContent(cleanedDocuments)) {
+                throw new BusinessException(ErrorCode.VIDEO_NO_SUBTITLE);
+            }
+
+            // 5. 创建视频记录（状态：IMPORTING）
             video = new Video();
             video.setUserId(userId);
             video.setBvid(bvid);
@@ -104,11 +116,11 @@ public class VideoServiceImpl implements VideoService {
             video.setImportTime(LocalDateTime.now());
             videoMapper.insert(video);
 
-            // 5. 文本切分
-            List<Document> splitDocuments = tokenTextSplitter.apply(documents);
+            // 6. 按 token 切分清洗后的字幕，避免广告和低信息噪声进入向量库
+            List<Document> splitDocuments = tokenTextSplitter.apply(cleanedDocuments);
             List<Document> indexedDocuments = new ArrayList<>(splitDocuments.size());
 
-            // 6. 生成向量ID并准备数据
+            // 7. 生成向量ID并准备数据
             List<Chunk> chunks = new ArrayList<>();
             List<VectorMapping> mappings = new ArrayList<>();
             int totalChunks = splitDocuments.size();
@@ -140,15 +152,15 @@ public class VideoServiceImpl implements VideoService {
                 chunks.add(chunk);
             }
 
-            // 7. 批量插入分片
+            // 8. 批量插入分片
             if (!chunks.isEmpty()) {
                 chunkMapper.batchInsert(chunks);
             }
 
-            // 8. 写入 DashVector
+            // 9. 写入 DashVector
             dashVectorStore.add(indexedDocuments);
 
-            // 9. 创建向量映射
+            // 10. 创建向量映射
             for (int i = 0; i < chunks.size(); i++) {
                 Chunk chunk = chunks.get(i);
                 String vectorId = VectorIDGenerator.generate(userId, bvid, i);
@@ -162,17 +174,19 @@ public class VideoServiceImpl implements VideoService {
                 mappings.add(mapping);
             }
 
-            // 10. 批量插入向量映射
+            // 11. 批量插入向量映射
             if (!mappings.isEmpty()) {
                 vectorMappingMapper.batchInsert(mappings);
             }
 
-            // 11. 更新视频状态为成功
+            // 12. 更新视频状态为成功
             video.setStatus(VideoStatus.SUCCESS.getCode());
             videoMapper.update(video);
 
             log.info("视频导入成功: userId={}, bvid={}, chunks={}", userId, bvid, totalChunks);
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("视频导入失败: userId={}, bvid={}", userId, bvid, e);
 
@@ -265,5 +279,34 @@ public class VideoServiceImpl implements VideoService {
         response.setChunkCount(chunkCount);
 
         return response;
+    }
+
+    private boolean hasUsableSubtitleContent(List<Document> documents) {
+        for (Document document : documents) {
+            Object segmentCount = document.getMetadata().get(SUBTITLE_SEGMENT_COUNT);
+            if (segmentCount instanceof Number number) {
+                if (number.intValue() > 0) {
+                    return true;
+                }
+                continue;
+            }
+
+            String text = document.getText();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+
+            int markerIndex = text.indexOf(TRANSCRIPT_MARKER);
+            if (markerIndex < 0) {
+                return true;
+            }
+
+            String transcript = text.substring(markerIndex + TRANSCRIPT_MARKER.length()).trim();
+            if (!transcript.isBlank()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

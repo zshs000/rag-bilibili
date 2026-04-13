@@ -83,7 +83,10 @@ public class BilibiliDocumentReader implements DocumentReader {
                 long cid = page.path("cid").asLong();
                 String transcript = fetchSubtitleTranscript(resource, bvid, cid);
                 if (!transcript.isBlank()) {
-                    allTranscripts.append(transcript).append(' ');
+                    if (!allTranscripts.isEmpty()) {
+                        allTranscripts.append('\n');
+                    }
+                    allTranscripts.append(transcript);
                 }
             }
 
@@ -138,7 +141,14 @@ public class BilibiliDocumentReader implements DocumentReader {
         JsonNode subtitleJson = parseJson(sendGet(resource, subtitleUrl));
         StringBuilder transcript = new StringBuilder();
         for (JsonNode node : subtitleJson.path("body")) {
-            transcript.append(node.path("content").asText("")).append(' ');
+            String segment = node.path("content").asText("").trim();
+            if (segment.isBlank()) {
+                continue;
+            }
+            if (!transcript.isEmpty()) {
+                transcript.append('\n');
+            }
+            transcript.append(segment);
         }
         return transcript.toString().trim();
     }

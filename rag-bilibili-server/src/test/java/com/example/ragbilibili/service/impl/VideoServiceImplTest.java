@@ -9,12 +9,13 @@ import com.example.ragbilibili.entity.VectorMapping;
 import com.example.ragbilibili.entity.Video;
 import com.example.ragbilibili.enums.VideoStatus;
 import com.example.ragbilibili.exception.BusinessException;
+import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.ChunkMapper;
 import com.example.ragbilibili.mapper.MessageMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VectorMappingMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
-import com.example.ragbilibili.service.impl.VideoStatusWriter;
+import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +63,9 @@ class VideoServiceImplTest {
 
     @Mock
     private TokenTextSplitter tokenTextSplitter;
+
+    @Mock
+    private SubtitleCleaningTransformer subtitleCleaningTransformer;
 
     @Mock
     private DashVectorStore dashVectorStore;
@@ -96,6 +101,7 @@ class VideoServiceImplTest {
         List<Document> documents = List.of(sourceDocument);
         List<Document> splitDocuments = List.of(splitDocument);
 
+        when(subtitleCleaningTransformer.apply(documents)).thenReturn(documents);
         when(tokenTextSplitter.apply(documents)).thenReturn(splitDocuments);
 
         doAnswer(invocation -> {
@@ -141,6 +147,47 @@ class VideoServiceImplTest {
         }
     }
 
+    @Test
+    void importVideoShouldRejectWhenCleaningRemovesAllSubtitleSegments() {
+        ImportVideoRequest request = new ImportVideoRequest();
+        request.setBvidOrUrl("BV1KMwgeKECx");
+        request.setSessdata("sessdata");
+        request.setBiliJct("biliJct");
+        request.setBuvid3("buvid3");
+
+        when(videoMapper.selectByUserIdAndBvid(1L, "BV1KMwgeKECx")).thenReturn(null);
+
+        Document sourceDocument = Document.builder()
+                .text("原始字幕")
+                .metadata(new HashMap<>())
+                .metadata("title", "测试标题")
+                .metadata("description", "测试描述")
+                .build();
+        Document cleanedDocument = Document.builder()
+                .text("Video Title: 测试标题\nTranscript:")
+                .metadata(new HashMap<>())
+                .metadata("subtitle_segment_count", 0)
+                .build();
+
+        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(cleanedDocument));
+
+        try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
+                BilibiliDocumentReader.class,
+                (mock, context) -> when(mock.get()).thenReturn(List.of(sourceDocument)))) {
+
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> videoService.importVideo(request, 1L)
+            );
+
+            assertEquals(ErrorCode.VIDEO_NO_SUBTITLE.getCode(), exception.getCode());
+            verify(videoMapper, never()).insert(any(Video.class));
+            verify(tokenTextSplitter, never()).apply(any());
+            verify(dashVectorStore, never()).add(any());
+            verify(videoStatusWriter, never()).markFailed(any(Video.class), any());
+        }
+    }
+
     /**
      * 暴露 Bug：@Transactional + catch-rethrow 导致 FAILED 状态丢失
      *
@@ -177,6 +224,7 @@ class VideoServiceImplTest {
                 .metadata(new HashMap<>())
                 .build();
 
+        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(sourceDocument));
         when(tokenTextSplitter.apply(List.of(sourceDocument))).thenReturn(List.of(splitDocument));
 
         // insert() 模拟给 video 赋 ID，与正常流程一致
