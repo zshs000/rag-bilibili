@@ -11,6 +11,15 @@
         <result column="create_time" property="createTime"/>
     </resultMap>
 
+    <resultMap id="SessionWithVideoTitleResultMap" type="com.example.ragbilibili.entity.SessionWithVideoTitle">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="session_type" property="sessionType"/>
+        <result column="video_id" property="videoId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="video_title" property="videoTitle"/>
+    </resultMap>
+
     <select id="selectById" resultMap="BaseResultMap">
         SELECT id, user_id, session_type, video_id, create_time
         FROM session
@@ -22,6 +31,19 @@
         FROM session
         WHERE user_id = #{userId}
         ORDER BY create_time DESC
+    </select>
+
+    <select id="selectWithVideoTitleByUserId" resultMap="SessionWithVideoTitleResultMap">
+        SELECT s.id,
+               s.user_id,
+               s.session_type,
+               s.video_id,
+               s.create_time,
+               v.title AS video_title
+        FROM session s
+        LEFT JOIN video v ON s.video_id = v.id
+        WHERE s.user_id = #{userId}
+        ORDER BY s.create_time DESC
     </select>
 
     <select id="selectIdsByVideoId" resultType="long">

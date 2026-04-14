@@ -3,6 +3,7 @@ package com.example.ragbilibili.service.impl;
 import com.example.ragbilibili.dto.request.CreateSessionRequest;
 import com.example.ragbilibili.dto.response.SessionResponse;
 import com.example.ragbilibili.entity.Session;
+import com.example.ragbilibili.entity.SessionWithVideoTitle;
 import com.example.ragbilibili.entity.Video;
 import com.example.ragbilibili.enums.SessionType;
 import com.example.ragbilibili.exception.BusinessException;
@@ -35,14 +36,12 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionResponse createSession(CreateSessionRequest request, Long userId) {
-        // 验证会话类型
         String sessionType = request.getSessionType();
         if (!sessionType.equals(SessionType.SINGLE_VIDEO.getCode()) &&
             !sessionType.equals(SessionType.ALL_VIDEOS.getCode())) {
             throw new BusinessException(ErrorCode.SESSION_TYPE_ERROR);
         }
 
-        // 如果是单视频对话，验证视频ID
         if (sessionType.equals(SessionType.SINGLE_VIDEO.getCode())) {
             if (request.getVideoId() == null) {
                 throw new BusinessException(ErrorCode.PARAM_ERROR);
@@ -53,7 +52,6 @@ public class SessionServiceImpl implements SessionService {
             }
         }
 
-        // 创建会话
         Session session = new Session();
         session.setUserId(userId);
         session.setSessionType(sessionType);
@@ -67,7 +65,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public List<SessionResponse> listSessions(Long userId) {
-        List<Session> sessions = sessionMapper.selectByUserId(userId);
+        List<SessionWithVideoTitle> sessions = sessionMapper.selectWithVideoTitleByUserId(userId);
         return sessions.stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
@@ -85,16 +83,12 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public void deleteSession(Long sessionId, Long userId) {
-        // 验证会话是否存在且属于当前用户
         Session session = sessionMapper.selectById(sessionId);
         if (session == null || !session.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
         }
 
-        // 删除会话关联的消息
         messageMapper.deleteBySessionId(sessionId);
-
-        // 删除会话
         sessionMapper.deleteById(sessionId);
     }
 
@@ -105,7 +99,6 @@ public class SessionServiceImpl implements SessionService {
         response.setVideoId(session.getVideoId());
         response.setCreateTime(session.getCreateTime().format(FORMATTER));
 
-        // 如果是单视频对话，查询视频标题
         if (session.getVideoId() != null) {
             Video video = videoMapper.selectById(session.getVideoId());
             if (video != null) {
@@ -113,6 +106,16 @@ public class SessionServiceImpl implements SessionService {
             }
         }
 
+        return response;
+    }
+
+    private SessionResponse convertToResponse(SessionWithVideoTitle session) {
+        SessionResponse response = new SessionResponse();
+        response.setId(session.getId());
+        response.setSessionType(session.getSessionType());
+        response.setVideoId(session.getVideoId());
+        response.setCreateTime(session.getCreateTime().format(FORMATTER));
+        response.setVideoTitle(session.getVideoTitle());
         return response;
     }
 }
