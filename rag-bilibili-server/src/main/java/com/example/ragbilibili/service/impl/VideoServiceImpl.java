@@ -93,7 +93,7 @@ public class VideoServiceImpl implements VideoService {
             List<Document> documents = reader.get();
 
             if (documents.isEmpty()) {
-                throw new BusinessException(ErrorCode.VIDEO_NO_SUBTITLE);
+                throw noOfficialSubtitleException();
             }
 
             Document document = documents.get(0);
@@ -103,7 +103,7 @@ public class VideoServiceImpl implements VideoService {
             // 4. 先清洗自动字幕，清洗后若已无有效字幕则直接返回无字幕错误
             List<Document> cleanedDocuments = subtitleCleaningTransformer.apply(documents);
             if (!hasUsableSubtitleContent(cleanedDocuments)) {
-                throw new BusinessException(ErrorCode.VIDEO_NO_SUBTITLE);
+                throw cleanedSubtitleEmptyException();
             }
 
             // 5. 创建视频记录（状态：IMPORTING）
@@ -308,5 +308,19 @@ public class VideoServiceImpl implements VideoService {
         }
 
         return false;
+    }
+
+    private BusinessException noOfficialSubtitleException() {
+        return new BusinessException(
+                ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
+                "未检测到 B 站官方字幕（含 AI 字幕）。请先去视频主页确认播放器右下角是否有“字幕”按钮；若没有，则当前视频暂不支持导入。"
+        );
+    }
+
+    private BusinessException cleanedSubtitleEmptyException() {
+        return new BusinessException(
+                ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
+                "已读取到字幕，但清洗后未保留有效内容，当前视频暂不支持导入。"
+        );
     }
 }

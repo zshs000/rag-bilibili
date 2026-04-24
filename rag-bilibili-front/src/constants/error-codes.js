@@ -27,7 +27,8 @@ export const ERROR_MESSAGES = {
   [ERROR_CODES.VIDEO_NOT_FOUND]: "视频不存在或已被删除。",
   [ERROR_CODES.VIDEO_ALREADY_EXISTS]: "该视频已存在，请先删除后再导入。",
   [ERROR_CODES.VIDEO_IMPORT_FAILED]: "视频导入失败，请检查凭证和视频状态。",
-  [ERROR_CODES.VIDEO_NO_SUBTITLE]: "当前视频无法形成有效字幕，暂不支持导入。",
+  [ERROR_CODES.VIDEO_NO_SUBTITLE]:
+    "当前视频暂不支持导入。请先去视频主页确认播放器右下角是否有“字幕”按钮。",
   [ERROR_CODES.BVID_PARSE_ERROR]: "无法从输入内容中解析 BV 号。",
   [ERROR_CODES.SESSION_NOT_FOUND]: "会话不存在或已被删除。",
   [ERROR_CODES.SESSION_TYPE_ERROR]: "会话类型不合法，请重新创建会话。",

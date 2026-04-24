@@ -181,10 +181,42 @@ class VideoServiceImplTest {
             );
 
             assertEquals(ErrorCode.VIDEO_NO_SUBTITLE.getCode(), exception.getCode());
+            assertEquals("已读取到字幕，但清洗后未保留有效内容，当前视频暂不支持导入。", exception.getMessage());
             verify(videoMapper, never()).insert(any(Video.class));
             verify(tokenTextSplitter, never()).apply(any());
             verify(dashVectorStore, never()).add(any());
             verify(videoStatusWriter, never()).markFailed(any(Video.class), any());
+        }
+    }
+
+    @Test
+    void importVideoShouldTellUserToCheckSubtitleButtonWhenReaderReturnsNoDocuments() {
+        ImportVideoRequest request = new ImportVideoRequest();
+        request.setBvidOrUrl("BV1KMwgeKECx");
+        request.setSessdata("sessdata");
+        request.setBiliJct("biliJct");
+        request.setBuvid3("buvid3");
+
+        when(videoMapper.selectByUserIdAndBvid(1L, "BV1KMwgeKECx")).thenReturn(null);
+
+        try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
+                BilibiliDocumentReader.class,
+                (mock, context) -> when(mock.get()).thenReturn(List.of()))) {
+
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> videoService.importVideo(request, 1L)
+            );
+
+            assertEquals(ErrorCode.VIDEO_NO_SUBTITLE.getCode(), exception.getCode());
+            assertEquals(
+                    "未检测到 B 站官方字幕（含 AI 字幕）。请先去视频主页确认播放器右下角是否有“字幕”按钮；若没有，则当前视频暂不支持导入。",
+                    exception.getMessage()
+            );
+            verify(videoMapper, never()).insert(any(Video.class));
+            verify(subtitleCleaningTransformer, never()).apply(any());
+            verify(tokenTextSplitter, never()).apply(any());
+            verify(dashVectorStore, never()).add(any());
         }
     }
 
