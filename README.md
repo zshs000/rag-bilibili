@@ -51,7 +51,10 @@
 后端读取 B 站字幕与元数据
         |
         v
-文本切分 -> MySQL 保存 chunk / mapping -> DashVector 写入向量
+字幕按钮探测 / 有限重试 -> 清洗与分片 -> 短事务创建 IMPORTING 视频 -> DashVector 写入向量 -> 短事务保存 chunk / mapping 并更新 SUCCESS
+        |
+        v
+失败时补偿删除向量并更新 FAILED
         |
         v
 用户创建会话并提问
@@ -184,6 +187,20 @@ mvn spring-boot:run
 http://localhost:8080
 ```
 
+### 4. 安装字幕探测依赖
+
+字幕探测能力依赖仓库根目录下的 `subtitle-probe` 脚本，该脚本会由后端在导入失败后拉起 Node.js + Playwright 做页面字幕按钮探测。
+
+首次运行前建议执行：
+
+```powershell
+cd subtitle-probe
+npm install
+npx playwright install chromium
+```
+
+如果未安装这些依赖，后端仍可启动，但字幕探测与失败后重试辅助能力无法正常工作。
+
 ## 前端配置
 
 前端示例环境文件为 [rag-bilibili-front/.env.example](./rag-bilibili-front/.env.example)：
@@ -225,6 +242,12 @@ Vite 开发服务器会把 `/api/*` 代理到 `VITE_PROXY_TARGET`，默认是 `h
 5. 等待导入完成后，在“视频列表”中查看状态。
 6. 创建单视频会话或全视频会话。
 7. 在聊天页发起问题，查看基于检索结果的流式回答。
+
+导入说明：
+
+- 如果视频页面右下角没有官方字幕按钮，系统会直接提示当前视频不支持字幕读取
+- 如果页面存在字幕按钮但首轮读取为空，系统会自动执行页面探测与有限重试
+- 如果字幕读取成功但后续向量或数据库落库失败，系统会写入失败状态并补偿清理脏向量
 
 ## 主要页面
 
@@ -270,7 +293,8 @@ Vite 开发服务器会把 `/api/*` 代理到 `VITE_PROXY_TARGET`，默认是 `h
 ## 当前实现说明
 
 - 认证链路使用 JWT Bearer Token，不是服务端 Session/Cookie 登录态
-- 视频导入依赖 B 站字幕读取能力；如果目标视频无字幕，导入会失败
+- 视频导入依赖 B 站官方字幕能力；页面无字幕按钮时会直接提示不支持读取，页面有字幕按钮但元数据暂未就绪时会自动重试
+- 导入链路采用“事务外准备 + 短事务落库 + 失败补偿”三段式结构，向量已写入但数据库 finalize 失败时会补偿删除脏向量
 - 注册开关由后端配置项 `register.enabled` 控制，默认开启
 - 仓库内部分历史文档与当前代码实现存在少量差异，建议以实际工程配置与源码为准
 

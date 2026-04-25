@@ -114,6 +114,15 @@ rag:
       - "商务合作"
       - "转转"
       - "购物车"
+  subtitle-probe:
+    enabled: true
+    node-command: node
+    script-path: ../subtitle-probe/probe.mjs
+    timeout-millis: 10000
+    retry-delays-millis:
+      - 1000
+      - 2500
+      - 5000
 
 logging:
   level:
