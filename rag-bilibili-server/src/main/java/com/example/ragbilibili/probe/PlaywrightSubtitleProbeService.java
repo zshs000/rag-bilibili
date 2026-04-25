@@ -8,7 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,14 +61,23 @@ public class PlaywrightSubtitleProbeService {
 
         try {
             Process process = processBuilder.start();
+            ByteArrayOutputStream stdoutBuffer = new ByteArrayOutputStream();
+            ByteArrayOutputStream stderrBuffer = new ByteArrayOutputStream();
+            Thread stdoutCollector = startStreamCollector(process.getInputStream(), stdoutBuffer, "subtitle-probe-stdout");
+            Thread stderrCollector = startStreamCollector(process.getErrorStream(), stderrBuffer, "subtitle-probe-stderr");
             boolean finished = process.waitFor(properties.getTimeoutMillis() + 3000, TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroyForcibly();
+                process.waitFor(1, TimeUnit.SECONDS);
+                joinCollector(stdoutCollector);
+                joinCollector(stderrCollector);
                 return SubtitleProbeResult.unknown("probe process timeout");
             }
 
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            joinCollector(stdoutCollector);
+            joinCollector(stderrCollector);
+            String stdout = stdoutBuffer.toString(StandardCharsets.UTF_8).trim();
+            String stderr = stderrBuffer.toString(StandardCharsets.UTF_8).trim();
 
             if (process.exitValue() != 0) {
                 log.warn("subtitle probe exited with code={}, stderr={}", process.exitValue(), stderr);
@@ -92,6 +103,25 @@ public class PlaywrightSubtitleProbeService {
             Thread.currentThread().interrupt();
             return SubtitleProbeResult.unknown("probe interrupted");
         }
+    }
+
+    private Thread startStreamCollector(InputStream inputStream, ByteArrayOutputStream outputStream, String threadName) {
+        Thread thread = new Thread(() -> copyStream(inputStream, outputStream), threadName);
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    private void copyStream(InputStream inputStream, ByteArrayOutputStream outputStream) {
+        try (InputStream in = inputStream; ByteArrayOutputStream out = outputStream) {
+            in.transferTo(out);
+        } catch (IOException e) {
+            log.debug("subtitle probe stream read failed: {}", e.getMessage());
+        }
+    }
+
+    private void joinCollector(Thread thread) throws InterruptedException {
+        thread.join(TimeUnit.SECONDS.toMillis(1));
     }
 
     private SubtitleProbeStatus parseStatus(String rawStatus) {
