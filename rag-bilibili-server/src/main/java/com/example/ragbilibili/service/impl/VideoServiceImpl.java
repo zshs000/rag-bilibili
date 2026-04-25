@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.reader.bilibili.BilibiliCredentials;
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliDocumentReader;
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliResource;
 import com.alibaba.cloud.ai.vectorstore.dashvector.DashVectorStore;
+import com.example.ragbilibili.config.SubtitleProbeProperties;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
 import com.example.ragbilibili.dto.response.VideoResponse;
 import com.example.ragbilibili.entity.Chunk;
@@ -13,6 +14,8 @@ import com.example.ragbilibili.enums.VideoStatus;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.*;
+import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
+import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.service.VideoService;
 import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import com.example.ragbilibili.util.BVIDParser;
@@ -65,6 +68,12 @@ public class VideoServiceImpl implements VideoService {
     @Autowired
     private VideoStatusWriter videoStatusWriter;
 
+    @Autowired
+    private PlaywrightSubtitleProbeService subtitleProbeService;
+
+    @Autowired
+    private SubtitleProbeProperties subtitleProbeProperties;
+
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
@@ -89,11 +98,24 @@ public class VideoServiceImpl implements VideoService {
                     .buvid3(request.getBuvid3())
                     .build();
 
-            BilibiliDocumentReader reader = new BilibiliDocumentReader(new BilibiliResource(bvid, credentials));
-            List<Document> documents = reader.get();
+            BilibiliResource resource = new BilibiliResource(bvid, credentials);
+            List<Document> documents = readDocuments(resource);
 
             if (documents.isEmpty()) {
-                throw noOfficialSubtitleException();
+                SubtitleProbeResult probeResult = subtitleProbeService.probe(buildVideoPageUrl(bvid), credentials);
+                log.info("字幕探测结果: bvid={}, status={}, reason={}", bvid, probeResult.getStatus(), probeResult.getReason());
+
+                if (probeResult.hasNoSubtitleButton()) {
+                    throw noOfficialSubtitleException();
+                }
+
+                documents = retryReadDocuments(resource, bvid);
+                if (documents.isEmpty()) {
+                    if (probeResult.hasSubtitleButton()) {
+                        throw subtitleTemporarilyUnavailableException();
+                    }
+                    throw subtitleUnavailableAfterRetryException();
+                }
             }
 
             Document document = documents.get(0);
@@ -310,6 +332,36 @@ public class VideoServiceImpl implements VideoService {
         return false;
     }
 
+    private List<Document> readDocuments(BilibiliResource resource) {
+        return new BilibiliDocumentReader(resource).get();
+    }
+
+    private List<Document> retryReadDocuments(BilibiliResource resource, String bvid) {
+        long[] retryDelaysMillis = subtitleProbeProperties.getRetryDelaysMillis();
+        List<Document> documents = List.of();
+        for (int i = 0; i < retryDelaysMillis.length; i++) {
+            sleepQuietly(retryDelaysMillis[i]);
+            documents = readDocuments(resource);
+            log.info("字幕重试结果: bvid={}, attempt={}, success={}", bvid, i + 1, !documents.isEmpty());
+            if (!documents.isEmpty()) {
+                return documents;
+            }
+        }
+        return documents;
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(Math.max(0, millis));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String buildVideoPageUrl(String bvid) {
+        return "https://www.bilibili.com/video/" + bvid + "/";
+    }
+
     private BusinessException noOfficialSubtitleException() {
         return new BusinessException(
                 ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
@@ -321,6 +373,20 @@ public class VideoServiceImpl implements VideoService {
         return new BusinessException(
                 ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
                 "已读取到字幕，但清洗后未保留有效内容，当前视频暂不支持导入。"
+        );
+    }
+
+    private BusinessException subtitleTemporarilyUnavailableException() {
+        return new BusinessException(
+                ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
+                "已检测到视频主页存在“字幕”按钮，但当前官方字幕接口暂未返回内容，可能仍在处理或发生了短暂波动，请稍后重试。"
+        );
+    }
+
+    private BusinessException subtitleUnavailableAfterRetryException() {
+        return new BusinessException(
+                ErrorCode.VIDEO_NO_SUBTITLE.getCode(),
+                "未读取到可用字幕。请先前往视频主页确认播放器右下角是否存在“字幕”按钮；若没有，则当前视频大概率未开通 B 站官方字幕。"
         );
     }
 }

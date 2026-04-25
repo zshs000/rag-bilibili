@@ -73,3 +73,9 @@ application-dev.properties
 # Local analysis artifacts
 **/cp.txt
 **/*_javap.txt
+
+# Subtitle eval / probe outputs
+subtitle-cleaning-eval-lab/outputs/
+subtitle-cleaning-eval-lab/report.txt
+subtitle-cleaning-eval-lab/*.html
+subtitle-cleaning-eval-lab/*.json
