@@ -124,7 +124,7 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void deleteVideo(Long videoId, Long userId) {
         Video video = videoMapper.selectById(videoId);
         if (video == null || !video.getUserId().equals(userId)) {
