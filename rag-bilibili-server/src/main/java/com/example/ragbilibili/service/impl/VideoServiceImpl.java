@@ -7,13 +7,15 @@ import com.alibaba.cloud.ai.vectorstore.dashvector.DashVectorStore;
 import com.example.ragbilibili.config.SubtitleProbeProperties;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
 import com.example.ragbilibili.dto.response.VideoResponse;
-import com.example.ragbilibili.entity.Chunk;
-import com.example.ragbilibili.entity.VectorMapping;
 import com.example.ragbilibili.entity.Video;
 import com.example.ragbilibili.enums.VideoStatus;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
-import com.example.ragbilibili.mapper.*;
+import com.example.ragbilibili.mapper.ChunkMapper;
+import com.example.ragbilibili.mapper.MessageMapper;
+import com.example.ragbilibili.mapper.SessionMapper;
+import com.example.ragbilibili.mapper.VectorMappingMapper;
+import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.service.VideoService;
@@ -26,9 +28,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +40,7 @@ public class VideoServiceImpl implements VideoService {
     private static final Logger log = LoggerFactory.getLogger(VideoServiceImpl.class);
     private static final String TRANSCRIPT_MARKER = "Transcript:";
     private static final String SUBTITLE_SEGMENT_COUNT = "subtitle_segment_count";
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     private VideoMapper videoMapper;
@@ -69,154 +70,36 @@ public class VideoServiceImpl implements VideoService {
     private VideoStatusWriter videoStatusWriter;
 
     @Autowired
+    private VideoImportTxService videoImportTxService;
+
+    @Autowired
     private PlaywrightSubtitleProbeService subtitleProbeService;
 
     @Autowired
     private SubtitleProbeProperties subtitleProbeProperties;
 
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
     @Override
-    @Transactional
     public VideoResponse importVideo(ImportVideoRequest request, Long userId) {
-        // 1. 解析 BV 号
         String bvid = BVIDParser.parse(request.getBvidOrUrl());
-
-        // 2. 检查视频是否已存在
-        Video existingVideo = videoMapper.selectByUserIdAndBvid(userId, bvid);
-        if (existingVideo != null) {
-            throw new BusinessException(ErrorCode.VIDEO_ALREADY_EXISTS);
-        }
-
         Video video = null;
+        PreparedVideoImportData prepared = null;
+        boolean vectorWritten = false;
 
         try {
-            // 3. 使用 BilibiliDocumentReader 读取视频内容
-            BilibiliCredentials credentials = BilibiliCredentials.builder()
-                    .sessdata(request.getSessdata())
-                    .biliJct(request.getBiliJct())
-                    .buvid3(request.getBuvid3())
-                    .build();
+            prepared = prepareImportData(request, userId, bvid);
+            video = videoImportTxService.createImportingVideo(prepared, userId);
 
-            BilibiliResource resource = new BilibiliResource(bvid, credentials);
-            List<Document> documents = readDocuments(resource);
+            dashVectorStore.add(prepared.getIndexedDocuments());
+            vectorWritten = true;
 
-            if (documents.isEmpty()) {
-                SubtitleProbeResult probeResult = subtitleProbeService.probe(buildVideoPageUrl(bvid), credentials);
-                log.info("字幕探测结果: bvid={}, status={}, reason={}", bvid, probeResult.getStatus(), probeResult.getReason());
+            videoImportTxService.finalizeImportSuccess(video, userId, prepared);
 
-                if (probeResult.hasNoSubtitleButton()) {
-                    throw noOfficialSubtitleException();
-                }
-
-                documents = retryReadDocuments(resource, bvid);
-                if (documents.isEmpty()) {
-                    if (probeResult.hasSubtitleButton()) {
-                        throw subtitleTemporarilyUnavailableException();
-                    }
-                    throw subtitleUnavailableAfterRetryException();
-                }
-            }
-
-            Document document = documents.get(0);
-            String videoTitle = (String) document.getMetadata().get("title");
-            String videoDescription = (String) document.getMetadata().get("description");
-
-            // 4. 先清洗自动字幕，清洗后若已无有效字幕则直接返回无字幕错误
-            List<Document> cleanedDocuments = subtitleCleaningTransformer.apply(documents);
-            if (!hasUsableSubtitleContent(cleanedDocuments)) {
-                throw cleanedSubtitleEmptyException();
-            }
-
-            // 5. 创建视频记录（状态：IMPORTING）
-            video = new Video();
-            video.setUserId(userId);
-            video.setBvid(bvid);
-            video.setTitle(videoTitle);
-            video.setDescription(videoDescription);
-            video.setStatus(VideoStatus.IMPORTING.getCode());
-            video.setImportTime(LocalDateTime.now());
-            videoMapper.insert(video);
-
-            // 6. 按 token 切分清洗后的字幕，避免广告和低信息噪声进入向量库
-            List<Document> splitDocuments = tokenTextSplitter.apply(cleanedDocuments);
-            List<Document> indexedDocuments = new ArrayList<>(splitDocuments.size());
-
-            // 7. 生成向量ID并准备数据
-            List<Chunk> chunks = new ArrayList<>();
-            List<VectorMapping> mappings = new ArrayList<>();
-            int totalChunks = splitDocuments.size();
-
-            for (int i = 0; i < splitDocuments.size(); i++) {
-                Document doc = splitDocuments.get(i);
-                String vectorId = VectorIDGenerator.generate(userId, bvid, i);
-
-                Document indexedDocument = Document.builder()
-                        .id(vectorId)
-                        .text(doc.getText())
-                        .metadata(new HashMap<>(doc.getMetadata()))
-                        .metadata("userId", userId)
-                        .metadata("bvid", bvid)
-                        .metadata("chunkIndex", i)
-                        .build();
-                indexedDocuments.add(indexedDocument);
-
-                // 创建分片记录
-                Chunk chunk = new Chunk();
-                chunk.setVideoId(video.getId());
-                chunk.setUserId(userId);
-                chunk.setBvid(bvid);
-                chunk.setTitle(videoTitle);
-                chunk.setChunkIndex(i);
-                chunk.setTotalChunks(totalChunks);
-                chunk.setChunkText(indexedDocument.getText());
-                chunk.setCreateTime(LocalDateTime.now());
-                chunks.add(chunk);
-            }
-
-            // 8. 批量插入分片
-            if (!chunks.isEmpty()) {
-                chunkMapper.batchInsert(chunks);
-            }
-
-            // 9. 写入 DashVector
-            dashVectorStore.add(indexedDocuments);
-
-            // 10. 创建向量映射
-            for (int i = 0; i < chunks.size(); i++) {
-                Chunk chunk = chunks.get(i);
-                String vectorId = VectorIDGenerator.generate(userId, bvid, i);
-
-                VectorMapping mapping = new VectorMapping();
-                mapping.setUserId(userId);
-                mapping.setVideoId(video.getId());
-                mapping.setChunkId(chunk.getId());
-                mapping.setVectorId(vectorId);
-                mapping.setCreateTime(LocalDateTime.now());
-                mappings.add(mapping);
-            }
-
-            // 11. 批量插入向量映射
-            if (!mappings.isEmpty()) {
-                vectorMappingMapper.batchInsert(mappings);
-            }
-
-            // 12. 更新视频状态为成功
-            video.setStatus(VideoStatus.SUCCESS.getCode());
-            videoMapper.update(video);
-
-            log.info("视频导入成功: userId={}, bvid={}, chunks={}", userId, bvid, totalChunks);
-
+            log.info("视频导入成功: userId={}, bvid={}, chunks={}", userId, bvid, prepared.getChunkPayloads().size());
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
             log.error("视频导入失败: userId={}, bvid={}", userId, bvid, e);
-
-            if (video != null) {
-                // 用独立事务写入失败状态，防止被外层事务回滚
-                videoStatusWriter.markFailed(video, e.getMessage());
-            }
-
+            handleImportFailure(video, prepared, vectorWritten, e);
             throw new BusinessException(ErrorCode.VIDEO_IMPORT_FAILED);
         }
 
@@ -241,48 +124,140 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    @Transactional
+    @org.springframework.transaction.annotation.Transactional
     public void deleteVideo(Long videoId, Long userId) {
-        // 1. 验证视频是否存在且属于当前用户
         Video video = videoMapper.selectById(videoId);
         if (video == null || !video.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.VIDEO_NOT_FOUND);
         }
 
         try {
-            // 2. 查询向量ID列表
             List<String> vectorIds = vectorMappingMapper.selectVectorIdsByVideoId(videoId);
-
-            // 3. 从 DashVector 删除向量（基于ID删除）
             if (!vectorIds.isEmpty()) {
                 dashVectorStore.delete(vectorIds);
             }
 
-            // 4. 查询关联的会话ID列表
             List<Long> sessionIds = sessionMapper.selectIdsByVideoId(videoId);
-
-            // 5. 删除会话关联的消息
             if (!sessionIds.isEmpty()) {
                 messageMapper.deleteBySessionIds(sessionIds);
             }
 
-            // 6. 删除会话
             sessionMapper.deleteByVideoId(videoId);
-
-            // 7. 删除向量映射
             vectorMappingMapper.deleteByVideoId(videoId);
-
-            // 8. 删除分片
             chunkMapper.deleteByVideoId(videoId);
-
-            // 9. 删除视频记录
             videoMapper.deleteById(videoId);
 
             log.info("视频删除成功: userId={}, videoId={}, bvid={}", userId, videoId, video.getBvid());
-
         } catch (Exception e) {
             log.error("视频删除失败: userId={}, videoId={}", userId, videoId, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+        }
+    }
+
+    private PreparedVideoImportData prepareImportData(ImportVideoRequest request, Long userId, String bvid) {
+        BilibiliCredentials credentials = BilibiliCredentials.builder()
+                .sessdata(request.getSessdata())
+                .biliJct(request.getBiliJct())
+                .buvid3(request.getBuvid3())
+                .build();
+
+        BilibiliResource resource = new BilibiliResource(bvid, credentials);
+        List<Document> documents = loadDocumentsWithProbeAndRetry(resource, credentials, bvid);
+
+        Document document = documents.get(0);
+        String videoTitle = (String) document.getMetadata().get("title");
+        String videoDescription = (String) document.getMetadata().get("description");
+
+        List<Document> cleanedDocuments = subtitleCleaningTransformer.apply(documents);
+        if (!hasUsableSubtitleContent(cleanedDocuments)) {
+            throw cleanedSubtitleEmptyException();
+        }
+
+        return buildPreparedImportData(userId, bvid, videoTitle, videoDescription, cleanedDocuments);
+    }
+
+    private List<Document> loadDocumentsWithProbeAndRetry(BilibiliResource resource,
+                                                          BilibiliCredentials credentials,
+                                                          String bvid) {
+        List<Document> documents = readDocuments(resource);
+
+        if (documents.isEmpty()) {
+            SubtitleProbeResult probeResult = subtitleProbeService.probe(buildVideoPageUrl(bvid), credentials);
+            log.info("字幕探测结果: bvid={}, status={}, reason={}", bvid, probeResult.getStatus(), probeResult.getReason());
+
+            if (probeResult.hasNoSubtitleButton()) {
+                throw noOfficialSubtitleException();
+            }
+
+            documents = retryReadDocuments(resource, bvid);
+            if (documents.isEmpty()) {
+                if (probeResult.hasSubtitleButton()) {
+                    throw subtitleTemporarilyUnavailableException();
+                }
+                throw subtitleUnavailableAfterRetryException();
+            }
+        }
+
+        return documents;
+    }
+
+    private PreparedVideoImportData buildPreparedImportData(Long userId,
+                                                            String bvid,
+                                                            String videoTitle,
+                                                            String videoDescription,
+                                                            List<Document> cleanedDocuments) {
+        List<Document> splitDocuments = tokenTextSplitter.apply(cleanedDocuments);
+        List<Document> indexedDocuments = new ArrayList<>(splitDocuments.size());
+        List<String> vectorIds = new ArrayList<>(splitDocuments.size());
+        List<PreparedVideoImportData.PreparedChunkPayload> chunkPayloads = new ArrayList<>(splitDocuments.size());
+        int totalChunks = splitDocuments.size();
+
+        for (int i = 0; i < splitDocuments.size(); i++) {
+            Document doc = splitDocuments.get(i);
+            String vectorId = VectorIDGenerator.generate(userId, bvid, i);
+
+            Document indexedDocument = Document.builder()
+                    .id(vectorId)
+                    .text(doc.getText())
+                    .metadata(new HashMap<>(doc.getMetadata()))
+                    .metadata("userId", userId)
+                    .metadata("bvid", bvid)
+                    .metadata("chunkIndex", i)
+                    .build();
+            indexedDocuments.add(indexedDocument);
+            vectorIds.add(vectorId);
+            chunkPayloads.add(new PreparedVideoImportData.PreparedChunkPayload(
+                    i,
+                    totalChunks,
+                    indexedDocument.getText(),
+                    vectorId
+            ));
+        }
+
+        return new PreparedVideoImportData(
+                bvid,
+                videoTitle,
+                videoDescription,
+                indexedDocuments,
+                vectorIds,
+                chunkPayloads
+        );
+    }
+
+    private void handleImportFailure(Video video,
+                                     PreparedVideoImportData prepared,
+                                     boolean vectorWritten,
+                                     Exception exception) {
+        if (vectorWritten && prepared != null && !prepared.getVectorIds().isEmpty()) {
+            try {
+                dashVectorStore.delete(prepared.getVectorIds());
+            } catch (Exception deleteException) {
+                log.error("向量补偿删除失败: bvid={}", prepared.getBvid(), deleteException);
+            }
+        }
+
+        if (video != null) {
+            videoStatusWriter.markFailed(video, exception.getMessage());
         }
     }
 
@@ -296,7 +271,6 @@ public class VideoServiceImpl implements VideoService {
         response.setStatus(video.getStatus());
         response.setFailReason(video.getFailReason());
 
-        // 查询分片数量
         int chunkCount = chunkMapper.countByVideoId(video.getId());
         response.setChunkCount(chunkCount);
 
