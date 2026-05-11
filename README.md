@@ -9,7 +9,7 @@
 
 ## 核心能力
 
-- 用户注册、登录、JWT 鉴权
+- 用户注册、登录、Sa-Token 鉴权
 - 导入 B 站视频字幕内容，支持输入 BV 号或包含 BV 的视频 URL
 - 自动切分文本并写入 DashVector 向量库
 - 管理视频库、查看导入状态与失败原因
@@ -31,7 +31,7 @@
 - MyBatis
 - MySQL
 - Flyway
-- JWT
+- Sa-Token
 
 ### 前端
 
@@ -76,7 +76,6 @@ rag-bilibili/
 ├── subtitle-cleaning-eval-lab/  # 字幕清洗评估实验室
 ├── docs/                        # 项目文档
 │   ├── backend/                 # 后端技术文档
-│   ├── blog/                    # 已发布博客
 │   ├── initial-design/          # 初期设计文档
 │   └── archive/                 # 归档文件
 ├── 功能用例图/                   # 用例图
@@ -93,8 +92,8 @@ rag-bilibili-server/src/main/java/com/example/ragbilibili/
 ├── entity/                      # 实体
 ├── dto/                         # 请求/响应/SSE DTO
 ├── config/                      # Spring AI、线程池、Web 配置
-├── interceptor/                 # JWT 登录拦截器
-└── util/                        # JWT、限流、BV 解析等工具
+├── auth/                        # Sa-Token 会话封装
+└── util/                        # 限流、BV 解析等工具
 ```
 
 前端核心目录：
@@ -296,7 +295,8 @@ Vite 开发服务器会把 `/api/*` 代理到 `VITE_PROXY_TARGET`，默认是 `h
 
 ## 当前实现说明
 
-- 认证链路使用 JWT Bearer Token，不是服务端 Session/Cookie 登录态
+- 认证链路使用 Sa-Token，前端仍通过 `Authorization: Bearer <token>` 传递 token
+- 当前未接 Redis，登录态使用默认进程内存储；后端重启后用户需要重新登录
 - 视频导入依赖 B 站官方字幕能力；页面无字幕按钮时会直接提示不支持读取，页面有字幕按钮但元数据暂未就绪时会自动重试
 - 导入链路采用“事务外准备 + 短事务落库 + 失败补偿”三段式结构，向量已写入但数据库 finalize 失败时会补偿删除脏向量
 - 注册开关由后端配置项 `register.enabled` 控制，默认开启
@@ -338,11 +338,6 @@ npm run build
 - [概要设计](./docs/initial-design/概要设计.md)
 - [详细设计](./docs/initial-design/详细设计.md)
 - [向量化实现说明](./docs/initial-design/向量化实现说明.md)
-
-## 技术博客
-
-- [Spring 事务陷阱](./docs/blog/Spring事务陷阱：当异常必须抛出，失败记录又必须保存.md)
-- [字幕导入稳定性问题复盘](./docs/blog/从偶发无字幕到补偿探测链路：一次 B 站字幕导入问题的完整收敛过程.md)
 
 ## 写在最后
 rag-bilibili 并非传统意义上的纯敏捷开发，而是**AI 时代特有的混合开发模式**：
