@@ -1,13 +1,11 @@
 package com.example.ragbilibili.controller;
 
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.dto.request.SendMessageRequest;
 import com.example.ragbilibili.dto.response.MessageResponse;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
 import com.example.ragbilibili.service.ChatService;
 import com.example.ragbilibili.service.MessageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.ragbilibili.util.UserContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +18,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -44,17 +41,11 @@ class MessageControllerTest {
     private MessageService messageService;
 
     @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @BeforeEach
-    void mockAuth() throws Exception {
-        UserContext.set(1L);
-        when(loginInterceptor.preHandle(any(), any(), any())).thenReturn(true);
-    }
-
-    @AfterEach
-    void clearAuth() {
-        UserContext.remove();
+    void mockAuth() {
+        when(authSessionManager.currentUserId()).thenReturn(1L);
     }
 
     @Test
@@ -66,7 +57,7 @@ class MessageControllerTest {
         when(chatService.streamMessage(eq(1L), eq("什么是 Spring Boot？"), eq(1L))).thenReturn(emitter);
 
         mockMvc.perform(post("/api/sessions/1/messages/stream")
-                        .header("Authorization", "Bearer mocked.jwt.token")
+                        .header("Authorization", "Bearer mocked.satoken.token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -81,7 +72,7 @@ class MessageControllerTest {
         request.setContent(" ");
 
         mockMvc.perform(post("/api/sessions/1/messages/stream")
-                        .header("Authorization", "Bearer mocked.jwt.token")
+                        .header("Authorization", "Bearer mocked.satoken.token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -107,7 +98,7 @@ class MessageControllerTest {
         when(messageService.listMessages(1L, 1L)).thenReturn(messages);
 
         mockMvc.perform(get("/api/sessions/1/messages")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.length()").value(2))

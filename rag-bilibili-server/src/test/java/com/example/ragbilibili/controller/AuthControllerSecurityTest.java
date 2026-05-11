@@ -3,9 +3,8 @@ package com.example.ragbilibili.controller;
 import com.example.ragbilibili.dto.request.LoginRequest;
 import com.example.ragbilibili.dto.request.RegisterRequest;
 import com.example.ragbilibili.dto.response.UserResponse;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.service.UserService;
-import com.example.ragbilibili.util.JwtUtil;
 import com.example.ragbilibili.util.RateLimiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,10 +40,7 @@ class AuthControllerSecurityTest {
     private UserService userService;
 
     @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @BeforeEach
     void clearRateLimitBuckets() throws Exception {
@@ -91,7 +87,7 @@ class AuthControllerSecurityTest {
         response.setId(1L);
         response.setUsername("testuser");
         when(userService.login(any())).thenReturn(response);
-        when(jwtUtil.generateToken(any())).thenReturn("mocked.jwt.token");
+        when(authSessionManager.login(any())).thenReturn("mocked.satoken.token");
 
         LoginRequest request = new LoginRequest();
         request.setUsername("testuser");
@@ -146,7 +142,7 @@ class AuthControllerSecurityTest {
         response.setId(42L);
         response.setUsername("testuser");
         when(userService.login(any())).thenReturn(response);
-        when(jwtUtil.generateToken(42L)).thenReturn("mocked.jwt.token");
+        when(authSessionManager.login(42L)).thenReturn("mocked.satoken.token");
 
         LoginRequest request = new LoginRequest();
         request.setUsername("testuser");
@@ -157,6 +153,6 @@ class AuthControllerSecurityTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.token").value("mocked.jwt.token"));
+                .andExpect(jsonPath("$.data.token").value("mocked.satoken.token"));
     }
 }

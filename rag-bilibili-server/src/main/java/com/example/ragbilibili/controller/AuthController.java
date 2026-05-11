@@ -1,5 +1,6 @@
 package com.example.ragbilibili.controller;
 
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.common.Result;
 import com.example.ragbilibili.dto.request.LoginRequest;
 import com.example.ragbilibili.dto.request.RegisterRequest;
@@ -7,9 +8,7 @@ import com.example.ragbilibili.dto.response.UserResponse;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.service.UserService;
-import com.example.ragbilibili.util.JwtUtil;
 import com.example.ragbilibili.util.RateLimiter;
-import com.example.ragbilibili.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +26,7 @@ public class AuthController {
     private UserService userService;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    private AuthSessionManager authSessionManager;
 
     @Value("${register.enabled:true}")
     private boolean registerEnabled;
@@ -55,20 +54,20 @@ public class AuthController {
             throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);
         }
         UserResponse response = userService.login(request);
-        String token = jwtUtil.generateToken(response.getId());
+        String token = authSessionManager.login(response.getId());
         response.setToken(token);
         return Result.success(response);
     }
 
     @PostMapping("/logout")
     public Result<Void> logout() {
-        // JWT 无状态，前端丢弃 token 即完成登出
+        authSessionManager.logout();
         return Result.success();
     }
 
     @GetMapping("/current")
     public Result<UserResponse> current() {
-        Long userId = UserContext.get();
+        Long userId = authSessionManager.currentUserId();
         return Result.success(userService.getCurrentUser(userId));
     }
 

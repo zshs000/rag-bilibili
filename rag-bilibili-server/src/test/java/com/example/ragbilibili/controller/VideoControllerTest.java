@@ -1,12 +1,10 @@
 package com.example.ragbilibili.controller;
 
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
 import com.example.ragbilibili.dto.response.VideoResponse;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
 import com.example.ragbilibili.service.VideoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.ragbilibili.util.UserContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,17 +36,11 @@ class VideoControllerTest {
     private VideoService videoService;
 
     @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @BeforeEach
-    void mockAuth() throws Exception {
-        UserContext.set(1L);
-        when(loginInterceptor.preHandle(any(), any(), any())).thenReturn(true);
-    }
-
-    @AfterEach
-    void clearAuth() {
-        UserContext.remove();
+    void mockAuth() {
+        when(authSessionManager.currentUserId()).thenReturn(1L);
     }
 
     @Test
@@ -70,7 +62,7 @@ class VideoControllerTest {
         when(videoService.importVideo(any(ImportVideoRequest.class), eq(1L))).thenReturn(response);
 
         mockMvc.perform(post("/api/videos")
-                        .header("Authorization", "Bearer mocked.jwt.token")
+                        .header("Authorization", "Bearer mocked.satoken.token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -99,7 +91,7 @@ class VideoControllerTest {
         when(videoService.listVideos(1L)).thenReturn(videos);
 
         mockMvc.perform(get("/api/videos")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.length()").value(2))
@@ -118,7 +110,7 @@ class VideoControllerTest {
         when(videoService.getVideo(1L, 1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/videos/1")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1))
@@ -130,7 +122,7 @@ class VideoControllerTest {
         doNothing().when(videoService).deleteVideo(1L, 1L);
 
         mockMvc.perform(delete("/api/videos/1")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }

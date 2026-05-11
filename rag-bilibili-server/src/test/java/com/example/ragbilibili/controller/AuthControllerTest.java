@@ -3,12 +3,9 @@ package com.example.ragbilibili.controller;
 import com.example.ragbilibili.dto.request.LoginRequest;
 import com.example.ragbilibili.dto.request.RegisterRequest;
 import com.example.ragbilibili.dto.response.UserResponse;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.service.UserService;
-import com.example.ragbilibili.util.JwtUtil;
-import com.example.ragbilibili.util.UserContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -34,10 +31,7 @@ class AuthControllerTest {
     private UserService userService;
 
     @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @Test
     void testRegister() throws Exception {
@@ -71,7 +65,7 @@ class AuthControllerTest {
         response.setUsername("testuser");
 
         when(userService.login(any(LoginRequest.class))).thenReturn(response);
-        when(jwtUtil.generateToken(1L)).thenReturn("mocked.jwt.token");
+        when(authSessionManager.login(1L)).thenReturn("mocked.satoken.token");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,17 +74,17 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.username").value("testuser"))
-                .andExpect(jsonPath("$.data.token").value("mocked.jwt.token"));
+                .andExpect(jsonPath("$.data.token").value("mocked.satoken.token"));
     }
 
     @Test
     void testLogout() throws Exception {
-        when(loginInterceptor.preHandle(any(), any(), any())).thenReturn(true);
-
         mockMvc.perform(post("/api/auth/logout")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+
+        org.mockito.Mockito.verify(authSessionManager).logout();
     }
 
     @Test
@@ -100,20 +94,11 @@ class AuthControllerTest {
         response.setUsername("testuser");
 
         when(userService.getCurrentUser(1L)).thenReturn(response);
-        when(loginInterceptor.preHandle(any(), any(), any())).thenAnswer(invocation -> {
-            UserContext.set(1L);
-            return true;
-        });
-
+        when(authSessionManager.currentUserId()).thenReturn(1L);
         mockMvc.perform(get("/api/auth/current")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.username").value("testuser"));
-    }
-
-    @AfterEach
-    void clearAuth() {
-        UserContext.remove();
     }
 }

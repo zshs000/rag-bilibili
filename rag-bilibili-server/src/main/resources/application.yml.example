@@ -56,9 +56,21 @@ mybatis:
 
 server:
   port: 8080
-  servlet:
-    session:
-      timeout: 30m
+
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: 604800
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-read-header: true
+  is-read-cookie: false
+  is-read-body: false
+
+register:
+  enabled: true
 
 rag:
   subtitle-cleaning:
