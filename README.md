@@ -72,11 +72,15 @@
 rag-bilibili/
 ├── rag-bilibili-front/          # Vue 3 前端
 ├── rag-bilibili-server/         # Spring Boot 后端
-├── 系统需求规约.md
-├── 概要设计.md
-├── 详细设计.md
-├── 向量化实现说明.md
-└── 后端实现完成总结.md
+├── subtitle-probe/              # 字幕按钮探测工具（Node.js + Playwright）
+├── subtitle-cleaning-eval-lab/  # 字幕清洗评估实验室
+├── docs/                        # 项目文档
+│   ├── backend/                 # 后端技术文档
+│   ├── blog/                    # 已发布博客
+│   ├── initial-design/          # 初期设计文档
+│   └── archive/                 # 归档文件
+├── 功能用例图/                   # 用例图
+└── README.md
 ```
 
 后端核心目录：
@@ -326,13 +330,19 @@ npm run build
 - [后端启动配置文档](./rag-bilibili-server/后端启动配置文档.md)
 - [前端快速启动文档](./rag-bilibili-front/前端快速启动文档.md)
 - [前端具体实现文档](./rag-bilibili-front/前端具体实现文档.md)
-- [系统需求规约](./系统需求规约.md)
-- [概要设计](./概要设计.md)
-- [详细设计](./详细设计.md)
-- [向量化实现说明](./向量化实现说明.md)
 
-## 相关文档
-- [项目初心](./项目初心.md)
+## 设计文档
+
+- [项目初心](./docs/项目初心.md)
+- [系统需求规约](./docs/initial-design/系统需求规约.md)
+- [概要设计](./docs/initial-design/概要设计.md)
+- [详细设计](./docs/initial-design/详细设计.md)
+- [向量化实现说明](./docs/initial-design/向量化实现说明.md)
+
+## 技术博客
+
+- [Spring 事务陷阱](./docs/blog/Spring事务陷阱：当异常必须抛出，失败记录又必须保存.md)
+- [字幕导入稳定性问题复盘](./docs/blog/从偶发无字幕到补偿探测链路：一次 B 站字幕导入问题的完整收敛过程.md)
 
 ## 写在最后
 rag-bilibili 并非传统意义上的纯敏捷开发，而是**AI 时代特有的混合开发模式**：
