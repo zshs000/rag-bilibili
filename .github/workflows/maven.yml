@@ -4,8 +4,14 @@ name: Java CI with Maven
 on:
   push:
     branches: [ "master" ]
+    paths:
+      - "rag-bilibili-server/**"
+      - ".github/workflows/maven.yml"
   pull_request:
     branches: [ "master" ]
+    paths:
+      - "rag-bilibili-server/**"
+      - ".github/workflows/maven.yml"
 
 jobs:
   build:
