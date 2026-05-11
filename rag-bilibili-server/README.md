@@ -12,7 +12,7 @@
 | MyBatis | 3.0.3 | ORM |
 | MySQL | 8.0+ | 业务数据存储 |
 | DashVector | - | 向量数据库 |
-| JWT | - | 认证方案 |
+| Sa-Token | 1.44.0 | 鉴权框架 |
 
 ## 环境要求
 

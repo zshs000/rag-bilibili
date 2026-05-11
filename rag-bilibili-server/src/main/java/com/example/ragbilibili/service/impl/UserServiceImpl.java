@@ -60,7 +60,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void logout(Long userId) {
-        // Session 认证方式，登出由 Controller 处理 session.invalidate()
+        // Sa-Token 登录态由 AuthController 通过 AuthSessionManager 处理。
         // 这里不需要额外逻辑
     }
 
