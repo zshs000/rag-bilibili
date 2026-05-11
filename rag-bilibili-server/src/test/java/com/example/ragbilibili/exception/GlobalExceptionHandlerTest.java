@@ -1,10 +1,10 @@
 package com.example.ragbilibili.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.controller.AuthController;
 import com.example.ragbilibili.dto.request.RegisterRequest;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
 import com.example.ragbilibili.service.UserService;
-import com.example.ragbilibili.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,10 +37,7 @@ class GlobalExceptionHandlerTest {
     private UserService userService;
 
     @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @Test
     void testDuplicateKeyExceptionReturnsUserAlreadyExists() throws Exception {
@@ -66,5 +64,15 @@ class GlobalExceptionHandlerTest {
                         .content("{}"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.message").value("小网站求你们别测试了 (っ °Д °;)っ"));
+    }
+    @Test
+    void testSatokenNotLoginReturns1004() throws Exception {
+        when(authSessionManager.currentUserId())
+                .thenThrow(new NotLoginException("未能读取到有效 token", "AuthController", "NO_TOKEN"));
+
+        mockMvc.perform(get("/api/auth/current")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1004));
     }
 }

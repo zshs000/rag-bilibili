@@ -57,9 +57,17 @@ mybatis:
 server:
   port: 8080
 
-jwt:
-  secret: ${JWT_SECRET:R@g-B1l1b1l1#2024$Xk9mPqZ3nVwL7eJcFhAsDuYtNbOiR5}
-  expiration: 604800000  # 7天，单位毫秒
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: 604800  # 7天，单位秒
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-read-header: true
+  is-read-cookie: false
+  is-read-body: false
 
 register:
   enabled: true

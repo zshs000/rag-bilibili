@@ -1,9 +1,8 @@
 package com.example.ragbilibili.controller;
 
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.dto.request.RegisterRequest;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
 import com.example.ragbilibili.service.UserService;
-import com.example.ragbilibili.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,10 +33,7 @@ class RegisterDisabledTest {
     private UserService userService;
 
     @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @Test
     void testRegisterDisabledReturns1005() throws Exception {

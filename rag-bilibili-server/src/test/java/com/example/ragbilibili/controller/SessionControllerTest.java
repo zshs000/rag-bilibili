@@ -1,12 +1,10 @@
 package com.example.ragbilibili.controller;
 
+import com.example.ragbilibili.auth.AuthSessionManager;
 import com.example.ragbilibili.dto.request.CreateSessionRequest;
 import com.example.ragbilibili.dto.response.SessionResponse;
-import com.example.ragbilibili.interceptor.LoginInterceptor;
 import com.example.ragbilibili.service.SessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.ragbilibili.util.UserContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,17 +36,11 @@ class SessionControllerTest {
     private SessionService sessionService;
 
     @MockBean
-    private LoginInterceptor loginInterceptor;
+    private AuthSessionManager authSessionManager;
 
     @BeforeEach
-    void mockAuth() throws Exception {
-        UserContext.set(1L);
-        when(loginInterceptor.preHandle(any(), any(), any())).thenReturn(true);
-    }
-
-    @AfterEach
-    void clearAuth() {
-        UserContext.remove();
+    void mockAuth() {
+        when(authSessionManager.currentUserId()).thenReturn(1L);
     }
 
     @Test
@@ -66,7 +58,7 @@ class SessionControllerTest {
         when(sessionService.createSession(any(CreateSessionRequest.class), eq(1L))).thenReturn(response);
 
         mockMvc.perform(post("/api/sessions")
-                        .header("Authorization", "Bearer mocked.jwt.token")
+                        .header("Authorization", "Bearer mocked.satoken.token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -88,7 +80,7 @@ class SessionControllerTest {
         when(sessionService.createSession(any(CreateSessionRequest.class), eq(1L))).thenReturn(response);
 
         mockMvc.perform(post("/api/sessions")
-                        .header("Authorization", "Bearer mocked.jwt.token")
+                        .header("Authorization", "Bearer mocked.satoken.token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -113,7 +105,7 @@ class SessionControllerTest {
         when(sessionService.listSessions(1L)).thenReturn(sessions);
 
         mockMvc.perform(get("/api/sessions")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.length()").value(2))
@@ -132,7 +124,7 @@ class SessionControllerTest {
         when(sessionService.getSession(1L, 1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/sessions/1")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1))
@@ -144,7 +136,7 @@ class SessionControllerTest {
         doNothing().when(sessionService).deleteSession(1L, 1L);
 
         mockMvc.perform(delete("/api/sessions/1")
-                        .header("Authorization", "Bearer mocked.jwt.token"))
+                        .header("Authorization", "Bearer mocked.satoken.token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }

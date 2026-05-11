@@ -1,5 +1,6 @@
 package com.example.ragbilibili.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
 import com.example.ragbilibili.common.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,12 @@ public class GlobalExceptionHandler {
     public Result<?> handleBusinessException(BusinessException e) {
         logger.warn("业务异常: code={}, message={}", e.getCode(), e.getMessage());
         return Result.error(e.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(NotLoginException.class)
+    public Result<?> handleNotLoginException(NotLoginException e) {
+        logger.warn("Satoken 未登录: {}", e.getMessage());
+        return Result.error(ErrorCode.NOT_LOGGED_IN.getCode(), ErrorCode.NOT_LOGGED_IN.getMessage());
     }
 
     /**
