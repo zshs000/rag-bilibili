@@ -15,10 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 视频删除数据库事务服务。
  */
+@Slf4j
 @Service
 public class VideoDeleteTxService {
 
@@ -56,8 +58,10 @@ public class VideoDeleteTxService {
         sessionMapper.deleteByVideoId(videoId);
         vectorMappingMapper.deleteByVideoId(videoId);
         chunkMapper.deleteByVideoId(videoId);
+        String bvid = video.getBvid();
         videoMapper.deleteById(videoId);
 
+        log.info("视频DB删除成功: userId={}, videoId={}, bvid={}", userId, videoId, bvid);
         return vectorIds == null ? Collections.emptyList() : vectorIds;
     }
 }

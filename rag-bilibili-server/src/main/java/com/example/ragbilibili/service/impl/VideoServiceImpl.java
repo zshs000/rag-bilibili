@@ -124,13 +124,14 @@ public class VideoServiceImpl implements VideoService {
         if (!vectorIds.isEmpty()) {
             try {
                 dashVectorStore.delete(vectorIds);
+                log.info("视频向量删除成功: userId={}, videoId={}, vectorCount={}", userId, videoId, vectorIds.size());
             } catch (RuntimeException e) {
                 log.error("视频DB已删除，DashVector删除失败，向量可能残留: userId={}, videoId={}, vectorCount={}",
                         userId, videoId, vectorIds.size(), e);
             }
         }
 
-        log.info("视频删除成功: userId={}, videoId={}", userId, videoId);
+        log.info("视频删除流程完成: userId={}, videoId={}", userId, videoId);
     }
 
     private PreparedVideoImportData prepareImportData(ImportVideoRequest request, Long userId, String bvid) {
