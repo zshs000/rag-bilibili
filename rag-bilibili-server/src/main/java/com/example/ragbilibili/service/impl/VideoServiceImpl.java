@@ -12,9 +12,6 @@ import com.example.ragbilibili.enums.VideoStatus;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.ChunkMapper;
-import com.example.ragbilibili.mapper.MessageMapper;
-import com.example.ragbilibili.mapper.SessionMapper;
-import com.example.ragbilibili.mapper.VectorMappingMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
@@ -28,7 +25,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -44,19 +40,10 @@ public class VideoServiceImpl implements VideoService {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
-    private VideoMapper videoMapper;
-
-    @Autowired
     private ChunkMapper chunkMapper;
 
     @Autowired
-    private VectorMappingMapper vectorMappingMapper;
-
-    @Autowired
-    private SessionMapper sessionMapper;
-
-    @Autowired
-    private MessageMapper messageMapper;
+    private VideoMapper videoMapper;
 
     @Autowired
     private TokenTextSplitter tokenTextSplitter;
@@ -72,6 +59,9 @@ public class VideoServiceImpl implements VideoService {
 
     @Autowired
     private VideoImportTxService videoImportTxService;
+
+    @Autowired
+    private VideoDeleteTxService videoDeleteTxService;
 
     @Autowired
     private PlaywrightSubtitleProbeService subtitleProbeService;
@@ -125,34 +115,20 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    @Transactional
     public void deleteVideo(Long videoId, Long userId) {
-        Video video = videoMapper.selectById(videoId);
-        if (video == null || !video.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.VIDEO_NOT_FOUND);
-        }
+        List<String> vectorIds = videoDeleteTxService.deleteVideoData(videoId, userId);
 
-        try {
-            List<String> vectorIds = vectorMappingMapper.selectVectorIdsByVideoId(videoId);
-            if (!vectorIds.isEmpty()) {
+        if (!vectorIds.isEmpty()) {
+            try {
                 dashVectorStore.delete(vectorIds);
+                log.info("视频向量删除成功: userId={}, videoId={}, vectorCount={}", userId, videoId, vectorIds.size());
+            } catch (RuntimeException e) {
+                log.error("视频DB已删除，DashVector删除失败，向量可能残留: userId={}, videoId={}, vectorCount={}",
+                        userId, videoId, vectorIds.size(), e);
             }
-
-            List<Long> sessionIds = sessionMapper.selectIdsByVideoId(videoId);
-            if (!sessionIds.isEmpty()) {
-                messageMapper.deleteBySessionIds(sessionIds);
-            }
-
-            sessionMapper.deleteByVideoId(videoId);
-            vectorMappingMapper.deleteByVideoId(videoId);
-            chunkMapper.deleteByVideoId(videoId);
-            videoMapper.deleteById(videoId);
-
-            log.info("视频删除成功: userId={}, videoId={}, bvid={}", userId, videoId, video.getBvid());
-        } catch (Exception e) {
-            log.error("视频删除失败: userId={}, videoId={}", userId, videoId, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
         }
+
+        log.info("视频删除流程完成: userId={}, videoId={}", userId, videoId);
     }
 
     private PreparedVideoImportData prepareImportData(ImportVideoRequest request, Long userId, String bvid) {
