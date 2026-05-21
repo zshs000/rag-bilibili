@@ -1,6 +1,6 @@
 package com.example.ragbilibili.service.impl;
 
-import com.alibaba.cloud.ai.vectorstore.dashvector.DashVectorStore;
+import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
 import com.example.ragbilibili.dto.sse.SseContentEvent;
 import com.example.ragbilibili.dto.sse.SseEndEvent;
 import com.example.ragbilibili.dto.sse.SseErrorEvent;
