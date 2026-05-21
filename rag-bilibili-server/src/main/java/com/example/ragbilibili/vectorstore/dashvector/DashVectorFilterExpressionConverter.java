@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.vectorstore.dashvector;
+package com.example.ragbilibili.vectorstore.dashvector;
 
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.Filter.Expression;

@@ -1,7 +1,7 @@
 package com.example.ragbilibili.service.impl;
 
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliDocumentReader;
-import com.alibaba.cloud.ai.vectorstore.dashvector.DashVectorStore;
+import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
 import com.example.ragbilibili.config.SubtitleProbeProperties;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
 import com.example.ragbilibili.dto.response.VideoResponse;

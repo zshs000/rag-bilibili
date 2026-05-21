@@ -1,6 +1,6 @@
 package com.example.ragbilibili.config;
 
-import com.alibaba.cloud.ai.vectorstore.dashvector.DashVectorStore;
+import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
 import com.aliyun.dashvector.DashVectorClient;
 import com.aliyun.dashvector.DashVectorCollection;
 import com.aliyun.dashvector.common.DashVectorException;

@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.vectorstore.dashvector;
+package com.example.ragbilibili.vectorstore.dashvector;
 
 import com.aliyun.dashvector.DashVectorCollection;
 import com.aliyun.dashvector.models.Doc;
