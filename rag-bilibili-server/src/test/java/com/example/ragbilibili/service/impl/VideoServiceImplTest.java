@@ -10,9 +10,6 @@ import com.example.ragbilibili.enums.VideoStatus;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.ChunkMapper;
-import com.example.ragbilibili.mapper.MessageMapper;
-import com.example.ragbilibili.mapper.SessionMapper;
-import com.example.ragbilibili.mapper.VectorMappingMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
@@ -20,6 +17,7 @@ import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
@@ -39,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -55,15 +54,6 @@ class VideoServiceImplTest {
     private ChunkMapper chunkMapper;
 
     @Mock
-    private VectorMappingMapper vectorMappingMapper;
-
-    @Mock
-    private SessionMapper sessionMapper;
-
-    @Mock
-    private MessageMapper messageMapper;
-
-    @Mock
     private TokenTextSplitter tokenTextSplitter;
 
     @Mock
@@ -77,6 +67,9 @@ class VideoServiceImplTest {
 
     @Mock
     private VideoImportTxService videoImportTxService;
+
+    @Mock
+    private VideoDeleteTxService videoDeleteTxService;
 
     @Mock
     private PlaywrightSubtitleProbeService subtitleProbeService;
@@ -283,6 +276,43 @@ class VideoServiceImplTest {
             verify(dashVectorStore, times(1)).delete(org.mockito.ArgumentMatchers.<java.util.List<String>>any());
             verify(videoStatusWriter, times(1)).markFailed(any(Video.class), eq("finalize failed"));
         }
+    }
+
+    @Test
+    void deleteVideoShouldDeleteVectorsAfterDatabaseDelete() {
+        List<String> vectorIds = List.of("1_BV1KMwgeKECx_0", "1_BV1KMwgeKECx_1");
+        when(videoDeleteTxService.deleteVideoData(100L, 1L)).thenReturn(vectorIds);
+
+        videoService.deleteVideo(100L, 1L);
+
+        InOrder inOrder = inOrder(videoDeleteTxService, dashVectorStore);
+        inOrder.verify(videoDeleteTxService, times(1)).deleteVideoData(100L, 1L);
+        inOrder.verify(dashVectorStore, times(1)).delete(vectorIds);
+
+        verify(videoDeleteTxService, times(1)).deleteVideoData(100L, 1L);
+        verify(dashVectorStore, times(1)).delete(vectorIds);
+    }
+
+    @Test
+    void deleteVideoShouldSkipDashVectorDeleteWhenNoVectorIds() {
+        when(videoDeleteTxService.deleteVideoData(100L, 1L)).thenReturn(List.of());
+
+        videoService.deleteVideo(100L, 1L);
+
+        verify(videoDeleteTxService, times(1)).deleteVideoData(100L, 1L);
+        verify(dashVectorStore, never()).delete(org.mockito.ArgumentMatchers.<java.util.List<String>>any());
+    }
+
+    @Test
+    void deleteVideoShouldNotFailUserWhenVectorDeleteFailsAfterDatabaseDelete() {
+        List<String> vectorIds = List.of("1_BV1KMwgeKECx_0");
+        when(videoDeleteTxService.deleteVideoData(100L, 1L)).thenReturn(vectorIds);
+        doThrow(new RuntimeException("DashVector 删除失败")).when(dashVectorStore).delete(vectorIds);
+
+        videoService.deleteVideo(100L, 1L);
+
+        verify(videoDeleteTxService, times(1)).deleteVideoData(100L, 1L);
+        verify(dashVectorStore, times(1)).delete(vectorIds);
     }
 
     private ImportVideoRequest buildRequest() {
