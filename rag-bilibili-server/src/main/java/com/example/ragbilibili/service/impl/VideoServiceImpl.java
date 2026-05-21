@@ -117,9 +117,6 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public void deleteVideo(Long videoId, Long userId) {
         List<String> vectorIds = videoDeleteTxService.deleteVideoData(videoId, userId);
-        if (vectorIds == null) {
-            vectorIds = List.of();
-        }
 
         if (!vectorIds.isEmpty()) {
             try {
