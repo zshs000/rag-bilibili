@@ -47,13 +47,7 @@ public class VideoDeleteTxService {
         }
 
         List<String> vectorIds = vectorMappingMapper.selectVectorIdsByVideoId(videoId);
-        List<Long> sessionIds = sessionMapper.selectIdsByVideoId(videoId);
-        if (sessionIds == null) {
-            sessionIds = List.of();
-        }
-        if (!sessionIds.isEmpty()) {
-            messageMapper.deleteBySessionIds(sessionIds);
-        }
+        messageMapper.deleteByVideoId(videoId);
 
         sessionMapper.deleteByVideoId(videoId);
         vectorMappingMapper.deleteByVideoId(videoId);

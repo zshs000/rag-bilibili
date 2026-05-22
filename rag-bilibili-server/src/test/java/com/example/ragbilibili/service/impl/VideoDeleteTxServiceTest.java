@@ -19,7 +19,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,11 +52,9 @@ class VideoDeleteTxServiceTest {
         video.setUserId(1L);
         video.setBvid("BV1KMwgeKECx");
         List<String> vectorIds = List.of("1_BV1KMwgeKECx_0", "1_BV1KMwgeKECx_1");
-        List<Long> sessionIds = List.of(10L, 11L);
 
         when(videoMapper.selectById(100L)).thenReturn(video);
         when(vectorMappingMapper.selectVectorIdsByVideoId(100L)).thenReturn(vectorIds);
-        when(sessionMapper.selectIdsByVideoId(100L)).thenReturn(sessionIds);
 
         List<String> result = videoDeleteTxService.deleteVideoData(100L, 1L);
 
@@ -65,8 +62,7 @@ class VideoDeleteTxServiceTest {
         InOrder inOrder = inOrder(videoMapper, vectorMappingMapper, sessionMapper, messageMapper, chunkMapper);
         inOrder.verify(videoMapper).selectById(100L);
         inOrder.verify(vectorMappingMapper).selectVectorIdsByVideoId(100L);
-        inOrder.verify(sessionMapper).selectIdsByVideoId(100L);
-        inOrder.verify(messageMapper).deleteBySessionIds(sessionIds);
+        inOrder.verify(messageMapper).deleteByVideoId(100L);
         inOrder.verify(sessionMapper).deleteByVideoId(100L);
         inOrder.verify(vectorMappingMapper).deleteByVideoId(100L);
         inOrder.verify(chunkMapper).deleteByVideoId(100L);
@@ -74,18 +70,18 @@ class VideoDeleteTxServiceTest {
     }
 
     @Test
-    void deleteVideoDataShouldSkipMessageDeleteWhenNoSessionIds() {
+    void deleteVideoDataShouldDeleteMessagesByVideoIdWithoutLoadingSessionIds() {
         Video video = new Video();
         video.setId(100L);
         video.setUserId(1L);
         when(videoMapper.selectById(100L)).thenReturn(video);
         when(vectorMappingMapper.selectVectorIdsByVideoId(100L)).thenReturn(List.of());
-        when(sessionMapper.selectIdsByVideoId(100L)).thenReturn(List.of());
 
         List<String> result = videoDeleteTxService.deleteVideoData(100L, 1L);
 
         assertEquals(List.of(), result);
-        verify(messageMapper, never()).deleteBySessionIds(any());
+        verify(messageMapper).deleteByVideoId(100L);
+        verify(sessionMapper, never()).selectIdsByVideoId(100L);
     }
 
     @Test

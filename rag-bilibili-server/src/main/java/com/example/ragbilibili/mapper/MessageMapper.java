@@ -27,6 +27,11 @@ public interface MessageMapper {
     int deleteBySessionIds(@Param("sessionIds") List<Long> sessionIds);
 
     /**
+     * 根据视频ID删除关联会话消息
+     */
+    int deleteByVideoId(@Param("videoId") Long videoId);
+
+    /**
      * 根据会话ID删除消息
      */
     int deleteBySessionId(@Param("sessionId") Long sessionId);
