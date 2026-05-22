@@ -72,3 +72,9 @@ mvn spring-boot:run
 - `DASHVECTOR_API_KEY`
 - `DASHVECTOR_ENDPOINT`
 
+## 代码审查
+
+做代码审查、尤其在准备说"测试覆盖不够"之前，先看 `docs/development/代码审查与测试评判.md`。
+
+本项目大体按 TDD 写代码，边界用例的留白通常是节奏问题不是 bug。测试是当前规约的可执行表达，不是防御未来错误的护栏，不要用"以后有人改坏了测不到"做论据。
+
