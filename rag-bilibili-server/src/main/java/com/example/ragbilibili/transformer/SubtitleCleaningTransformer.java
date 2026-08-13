@@ -1,5 +1,6 @@
 package com.example.ragbilibili.transformer;
 
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleCue;
 import com.example.ragbilibili.config.SubtitleCleaningProperties;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentTransformer;
@@ -46,6 +47,17 @@ public class SubtitleCleaningTransformer implements DocumentTransformer {
                 .collect(Collectors.toList());
     }
 
+    public List<BilibiliSubtitleCue> cleanCues(List<BilibiliSubtitleCue> cues) {
+        List<BilibiliSubtitleCue> normalizedCues = cues.stream()
+                .filter(cue -> cue != null && cue.content() != null)
+                .map(cue -> new BilibiliSubtitleCue(
+                        cue.from(), cue.to(), cue.sid(), cue.location(), normalizeSegment(cue.content())))
+                .filter(cue -> !cue.content().isEmpty())
+                .toList();
+        List<String> segments = normalizedCues.stream().map(BilibiliSubtitleCue::content).toList();
+        return cleanSegmentIndices(segments).stream().map(normalizedCues::get).toList();
+    }
+
     private Document cleanDocument(Document document) {
         String text = document.getText();
         if (text == null || text.isBlank() || !text.contains(TRANSCRIPT_MARKER)) {
@@ -56,7 +68,8 @@ public class SubtitleCleaningTransformer implements DocumentTransformer {
         String header = text.substring(0, markerIndex + TRANSCRIPT_MARKER.length());
         String transcript = text.substring(markerIndex + TRANSCRIPT_MARKER.length()).trim();
 
-        List<String> keptSegments = cleanTranscriptSegments(splitSegments(transcript));
+        List<String> segments = splitSegments(transcript);
+        List<String> keptSegments = cleanSegmentIndices(segments).stream().map(segments::get).toList();
         String cleanedTranscript = String.join("\n", keptSegments).trim();
         String cleanedText = cleanedTranscript.isEmpty() ? header : header + "\n" + cleanedTranscript;
 
@@ -83,9 +96,9 @@ public class SubtitleCleaningTransformer implements DocumentTransformer {
         return segments;
     }
 
-    private List<String> cleanTranscriptSegments(List<String> segments) {
+    private List<Integer> cleanSegmentIndices(List<String> segments) {
         boolean[] dropped = new boolean[segments.size()];
-        List<String> kept = new ArrayList<>();
+        List<Integer> kept = new ArrayList<>();
         String previousFingerprint = null;
 
         for (int i = 0; i < segments.size(); i++) {
@@ -105,7 +118,7 @@ public class SubtitleCleaningTransformer implements DocumentTransformer {
                 continue;
             }
 
-            kept.add(segment);
+            kept.add(i);
             previousFingerprint = fingerprint;
         }
 

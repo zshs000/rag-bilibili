@@ -3,6 +3,9 @@ package com.example.ragbilibili.service.impl;
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliCredentials;
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliDocumentReader;
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliResource;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitlePage;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleTrack;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliVideoSubtitles;
 import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
 import com.example.ragbilibili.config.SubtitleProbeProperties;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
@@ -17,26 +20,24 @@ import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.service.VideoService;
 import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
+import com.example.ragbilibili.transformer.SubtitleCueChunker;
+import com.example.ragbilibili.transformer.TimestampedSubtitleChunk;
 import com.example.ragbilibili.util.BVIDParser;
 import com.example.ragbilibili.util.VectorIDGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class VideoServiceImpl implements VideoService {
     private static final Logger log = LoggerFactory.getLogger(VideoServiceImpl.class);
-    private static final String TRANSCRIPT_MARKER = "Transcript:";
-    private static final String SUBTITLE_SEGMENT_COUNT = "subtitle_segment_count";
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
@@ -46,10 +47,10 @@ public class VideoServiceImpl implements VideoService {
     private VideoMapper videoMapper;
 
     @Autowired
-    private TokenTextSplitter tokenTextSplitter;
+    private SubtitleCleaningTransformer subtitleCleaningTransformer;
 
     @Autowired
-    private SubtitleCleaningTransformer subtitleCleaningTransformer;
+    private SubtitleCueChunker subtitleCueChunker;
 
     @Autowired
     private DashVectorStore dashVectorStore;
@@ -139,26 +140,21 @@ public class VideoServiceImpl implements VideoService {
                 .build();
 
         BilibiliResource resource = new BilibiliResource(bvid, credentials);
-        List<Document> documents = loadDocumentsWithProbeAndRetry(resource, credentials, bvid);
-
-        Document document = documents.get(0);
-        String videoTitle = (String) document.getMetadata().get("title");
-        String videoDescription = (String) document.getMetadata().get("description");
-
-        List<Document> cleanedDocuments = subtitleCleaningTransformer.apply(documents);
-        if (!hasUsableSubtitleContent(cleanedDocuments)) {
+        BilibiliVideoSubtitles subtitles = loadSubtitlesWithProbeAndRetry(resource, credentials, bvid);
+        List<TimestampedSubtitleChunk> chunks = buildTimestampedChunks(subtitles);
+        if (chunks.isEmpty()) {
             throw cleanedSubtitleEmptyException();
         }
 
-        return buildPreparedImportData(userId, bvid, videoTitle, videoDescription, cleanedDocuments);
+        return buildPreparedImportData(userId, subtitles, chunks);
     }
 
-    private List<Document> loadDocumentsWithProbeAndRetry(BilibiliResource resource,
-                                                          BilibiliCredentials credentials,
-                                                          String bvid) {
-        List<Document> documents = readDocuments(resource);
+    private BilibiliVideoSubtitles loadSubtitlesWithProbeAndRetry(BilibiliResource resource,
+                                                                  BilibiliCredentials credentials,
+                                                                  String bvid) {
+        BilibiliVideoSubtitles subtitles = readSubtitles(resource);
 
-        if (documents.isEmpty()) {
+        if (!hasSubtitleCues(subtitles)) {
             SubtitleProbeResult probeResult = subtitleProbeService.probe(buildVideoPageUrl(bvid), credentials);
             log.info("字幕探测结果: bvid={}, status={}, reason={}", bvid, probeResult.getStatus(), probeResult.getReason());
 
@@ -166,8 +162,8 @@ public class VideoServiceImpl implements VideoService {
                 throw noOfficialSubtitleException();
             }
 
-            documents = retryReadDocuments(resource, bvid);
-            if (documents.isEmpty()) {
+            subtitles = retryReadSubtitles(resource, bvid);
+            if (!hasSubtitleCues(subtitles)) {
                 if (probeResult.hasSubtitleButton()) {
                     throw subtitleTemporarilyUnavailableException();
                 }
@@ -175,31 +171,32 @@ public class VideoServiceImpl implements VideoService {
             }
         }
 
-        return documents;
+        return subtitles;
     }
 
     private PreparedVideoImportData buildPreparedImportData(Long userId,
-                                                            String bvid,
-                                                            String videoTitle,
-                                                            String videoDescription,
-                                                            List<Document> cleanedDocuments) {
-        List<Document> splitDocuments = tokenTextSplitter.apply(cleanedDocuments);
-        List<Document> indexedDocuments = new ArrayList<>(splitDocuments.size());
-        List<String> vectorIds = new ArrayList<>(splitDocuments.size());
-        List<PreparedVideoImportData.PreparedChunkPayload> chunkPayloads = new ArrayList<>(splitDocuments.size());
-        int totalChunks = splitDocuments.size();
+                                                            BilibiliVideoSubtitles subtitles,
+                                                            List<TimestampedSubtitleChunk> chunks) {
+        List<Document> indexedDocuments = new ArrayList<>(chunks.size());
+        List<String> vectorIds = new ArrayList<>(chunks.size());
+        List<PreparedVideoImportData.PreparedChunkPayload> chunkPayloads = new ArrayList<>(chunks.size());
+        int totalChunks = chunks.size();
 
-        for (int i = 0; i < splitDocuments.size(); i++) {
-            Document doc = splitDocuments.get(i);
-            String vectorId = VectorIDGenerator.generate(userId, bvid, i);
+        for (int i = 0; i < chunks.size(); i++) {
+            TimestampedSubtitleChunk chunk = chunks.get(i);
+            String vectorId = VectorIDGenerator.generate(userId, subtitles.bvid(), i);
 
             Document indexedDocument = Document.builder()
                     .id(vectorId)
-                    .text(doc.getText())
-                    .metadata(new HashMap<>(doc.getMetadata()))
+                    .text(chunk.text())
                     .metadata("userId", userId)
-                    .metadata("bvid", bvid)
+                    .metadata("bvid", subtitles.bvid())
                     .metadata("chunkIndex", i)
+                    .metadata("cid", chunk.cid())
+                    .metadata("pageNumber", chunk.pageNumber())
+                    .metadata("startTimeMs", chunk.startTimeMs())
+                    .metadata("endTimeMs", chunk.endTimeMs())
+                    .metadata("subtitleLanguage", chunk.subtitleLanguage())
                     .build();
             indexedDocuments.add(indexedDocument);
             vectorIds.add(vectorId);
@@ -207,14 +204,19 @@ public class VideoServiceImpl implements VideoService {
                     i,
                     totalChunks,
                     indexedDocument.getText(),
-                    vectorId
+                    vectorId,
+                    chunk.cid(),
+                    chunk.pageNumber(),
+                    chunk.startTimeMs(),
+                    chunk.endTimeMs(),
+                    chunk.subtitleLanguage()
             ));
         }
 
         return new PreparedVideoImportData(
-                bvid,
-                videoTitle,
-                videoDescription,
+                subtitles.bvid(),
+                subtitles.title(),
+                subtitles.description(),
                 indexedDocuments,
                 vectorIds,
                 chunkPayloads
@@ -254,51 +256,44 @@ public class VideoServiceImpl implements VideoService {
         return response;
     }
 
-    private boolean hasUsableSubtitleContent(List<Document> documents) {
-        for (Document document : documents) {
-            Object segmentCount = document.getMetadata().get(SUBTITLE_SEGMENT_COUNT);
-            if (segmentCount instanceof Number number) {
-                if (number.intValue() > 0) {
-                    return true;
-                }
+    private List<TimestampedSubtitleChunk> buildTimestampedChunks(BilibiliVideoSubtitles subtitles) {
+        List<TimestampedSubtitleChunk> chunks = new ArrayList<>();
+        for (BilibiliSubtitlePage page : subtitles.pages()) {
+            if (page.tracks().isEmpty()) {
                 continue;
             }
-
-            String text = document.getText();
-            if (text == null || text.isBlank()) {
-                continue;
-            }
-
-            int markerIndex = text.indexOf(TRANSCRIPT_MARKER);
-            if (markerIndex < 0) {
-                return true;
-            }
-
-            String transcript = text.substring(markerIndex + TRANSCRIPT_MARKER.length()).trim();
-            if (!transcript.isBlank()) {
-                return true;
-            }
+            BilibiliSubtitleTrack track = page.tracks().get(0);
+            chunks.addAll(subtitleCueChunker.split(page, track, subtitleCleaningTransformer.cleanCues(track.cues())));
         }
-
-        return false;
+        return chunks;
     }
 
-    private List<Document> readDocuments(BilibiliResource resource) {
-        return new BilibiliDocumentReader(resource).get();
+    private BilibiliVideoSubtitles readSubtitles(BilibiliResource resource) {
+        List<BilibiliVideoSubtitles> videos = new BilibiliDocumentReader(resource).readSubtitles();
+        return videos.isEmpty() ? null : videos.get(0);
     }
 
-    private List<Document> retryReadDocuments(BilibiliResource resource, String bvid) {
+    private BilibiliVideoSubtitles retryReadSubtitles(BilibiliResource resource, String bvid) {
         long[] retryDelaysMillis = subtitleProbeProperties.getRetryDelaysMillis();
-        List<Document> documents = List.of();
+        BilibiliVideoSubtitles subtitles = null;
         for (int i = 0; i < retryDelaysMillis.length; i++) {
             sleepQuietly(retryDelaysMillis[i]);
-            documents = readDocuments(resource);
-            log.info("字幕重试结果: bvid={}, attempt={}, success={}", bvid, i + 1, !documents.isEmpty());
-            if (!documents.isEmpty()) {
-                return documents;
+            subtitles = readSubtitles(resource);
+            boolean success = hasSubtitleCues(subtitles);
+            log.info("字幕重试结果: bvid={}, attempt={}, success={}", bvid, i + 1, success);
+            if (success) {
+                return subtitles;
             }
         }
-        return documents;
+        return subtitles;
+    }
+
+    private boolean hasSubtitleCues(BilibiliVideoSubtitles subtitles) {
+        if (subtitles == null) {
+            return false;
+        }
+        return subtitles.pages().stream()
+                .anyMatch(page -> !page.tracks().isEmpty() && !page.tracks().get(0).cues().isEmpty());
     }
 
     private void sleepQuietly(long millis) {

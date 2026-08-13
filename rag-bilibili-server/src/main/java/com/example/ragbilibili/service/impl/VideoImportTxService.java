@@ -63,6 +63,11 @@ public class VideoImportTxService {
             chunk.setChunkIndex(payload.getChunkIndex());
             chunk.setTotalChunks(payload.getTotalChunks());
             chunk.setChunkText(payload.getChunkText());
+            chunk.setCid(payload.getCid());
+            chunk.setPageNumber(payload.getPageNumber());
+            chunk.setStartTimeMs(payload.getStartTimeMs());
+            chunk.setEndTimeMs(payload.getEndTimeMs());
+            chunk.setSubtitleLanguage(payload.getSubtitleLanguage());
             chunk.setCreateTime(now);
             chunks.add(chunk);
         }

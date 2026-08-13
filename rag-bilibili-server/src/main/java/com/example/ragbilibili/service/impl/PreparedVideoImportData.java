@@ -59,12 +59,30 @@ public class PreparedVideoImportData {
         private final int totalChunks;
         private final String chunkText;
         private final String vectorId;
+        private final long cid;
+        private final int pageNumber;
+        private final long startTimeMs;
+        private final long endTimeMs;
+        private final String subtitleLanguage;
 
-        public PreparedChunkPayload(int chunkIndex, int totalChunks, String chunkText, String vectorId) {
+        public PreparedChunkPayload(int chunkIndex,
+                                    int totalChunks,
+                                    String chunkText,
+                                    String vectorId,
+                                    long cid,
+                                    int pageNumber,
+                                    long startTimeMs,
+                                    long endTimeMs,
+                                    String subtitleLanguage) {
             this.chunkIndex = chunkIndex;
             this.totalChunks = totalChunks;
             this.chunkText = chunkText;
             this.vectorId = vectorId;
+            this.cid = cid;
+            this.pageNumber = pageNumber;
+            this.startTimeMs = startTimeMs;
+            this.endTimeMs = endTimeMs;
+            this.subtitleLanguage = subtitleLanguage;
         }
 
         public int getChunkIndex() {
@@ -82,5 +100,11 @@ public class PreparedVideoImportData {
         public String getVectorId() {
             return vectorId;
         }
+
+        public long getCid() { return cid; }
+        public int getPageNumber() { return pageNumber; }
+        public long getStartTimeMs() { return startTimeMs; }
+        public long getEndTimeMs() { return endTimeMs; }
+        public String getSubtitleLanguage() { return subtitleLanguage; }
     }
 }

@@ -48,6 +48,12 @@ public class Chunk {
      */
     private String chunkText;
 
+    private Long cid;
+    private Integer pageNumber;
+    private Long startTimeMs;
+    private Long endTimeMs;
+    private String subtitleLanguage;
+
     /**
      * 创建时间
      */

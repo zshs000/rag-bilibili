@@ -1,11 +1,13 @@
 package com.example.ragbilibili.transformer;
 
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleCue;
 import com.example.ragbilibili.config.SubtitleCleaningProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -100,6 +102,21 @@ class SubtitleCleaningTransformerTest {
         assertTrue(cleaned.getText().contains("会阻塞"));
         assertTrue(cleaned.getText().contains("可重入"));
         assertEquals(3, cleaned.getMetadata().get("subtitle_segment_count"));
+    }
+
+    @Test
+    void shouldCleanCuesWithoutLosingTiming() {
+        BilibiliSubtitleCue kept = new BilibiliSubtitleCue(
+                new BigDecimal("1.25"), new BigDecimal("3.50"), 1L, 2, "  正常字幕  ");
+        BilibiliSubtitleCue ad = new BilibiliSubtitleCue(
+                new BigDecimal("3.50"), new BigDecimal("5.00"), 2L, 2, "本期视频由转转二手赞助");
+
+        List<BilibiliSubtitleCue> cleaned = transformer.cleanCues(List.of(kept, ad));
+
+        assertEquals(1, cleaned.size());
+        assertEquals(new BigDecimal("1.25"), cleaned.get(0).from());
+        assertEquals(new BigDecimal("3.50"), cleaned.get(0).to());
+        assertEquals("正常字幕", cleaned.get(0).content());
     }
 
     private int countOccurrences(String text, String target) {

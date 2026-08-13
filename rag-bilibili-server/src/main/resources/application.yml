@@ -73,6 +73,11 @@ register:
   enabled: true
 
 rag:
+  subtitle-chunking:
+    target-tokens: 400
+    min-tokens: 300
+    max-tokens: 500
+    overlap-cues: 2
   subtitle-cleaning:
     max-window-size: 3
     conditional-expand-to-3: true

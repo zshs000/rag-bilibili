@@ -1,6 +1,10 @@
 package com.example.ragbilibili.service.impl;
 
 import com.alibaba.cloud.ai.reader.bilibili.BilibiliDocumentReader;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleCue;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitlePage;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleTrack;
+import com.alibaba.cloud.ai.reader.bilibili.BilibiliVideoSubtitles;
 import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
 import com.example.ragbilibili.config.SubtitleProbeProperties;
 import com.example.ragbilibili.dto.request.ImportVideoRequest;
@@ -14,6 +18,8 @@ import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
+import com.example.ragbilibili.transformer.SubtitleCueChunker;
+import com.example.ragbilibili.transformer.TimestampedSubtitleChunk;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,10 +29,9 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
+import java.math.BigDecimal;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -54,10 +59,10 @@ class VideoServiceImplTest {
     private ChunkMapper chunkMapper;
 
     @Mock
-    private TokenTextSplitter tokenTextSplitter;
+    private SubtitleCleaningTransformer subtitleCleaningTransformer;
 
     @Mock
-    private SubtitleCleaningTransformer subtitleCleaningTransformer;
+    private SubtitleCueChunker subtitleCueChunker;
 
     @Mock
     private DashVectorStore dashVectorStore;
@@ -84,16 +89,13 @@ class VideoServiceImplTest {
     void importVideoShouldInsertVideoAfterFetchingTitle() {
         ImportVideoRequest request = buildRequest();
 
-        Document sourceDocument = sourceDocument();
-        Document splitDocument = splitDocument();
-
-        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(sourceDocument));
-        when(tokenTextSplitter.apply(List.of(sourceDocument))).thenReturn(List.of(splitDocument));
+        BilibiliVideoSubtitles subtitles = subtitles();
+        stubChunking(subtitles);
         stubSuccessfulImportFlow();
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of(sourceDocument)))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of(subtitles)))) {
 
             VideoResponse response = videoService.importVideo(request, 1L);
 
@@ -104,6 +106,17 @@ class VideoServiceImplTest {
             verify(videoImportTxService, times(1)).createImportingVideo(any(PreparedVideoImportData.class), eq(1L));
             verify(videoImportTxService, times(1)).finalizeImportSuccess(any(Video.class), eq(1L), any(PreparedVideoImportData.class));
             verify(subtitleProbeService, never()).probe(any(), any());
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<Document>> documentsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(dashVectorStore).add(documentsCaptor.capture());
+            Document indexed = documentsCaptor.getValue().get(0);
+            assertEquals("切分片段", indexed.getText());
+            assertEquals(123L, indexed.getMetadata().get("cid"));
+            assertEquals(1, indexed.getMetadata().get("pageNumber"));
+            assertEquals(1250L, indexed.getMetadata().get("startTimeMs"));
+            assertEquals(3500L, indexed.getMetadata().get("endTimeMs"));
+            assertEquals("ai-zh", indexed.getMetadata().get("subtitleLanguage"));
         }
     }
 
@@ -111,18 +124,13 @@ class VideoServiceImplTest {
     void importVideoShouldRejectWhenCleaningRemovesAllSubtitleSegments() {
         ImportVideoRequest request = buildRequest();
 
-        Document sourceDocument = sourceDocument();
-        Document cleanedDocument = Document.builder()
-                .text("Video Title: 测试标题\nTranscript:")
-                .metadata(new HashMap<>())
-                .metadata("subtitle_segment_count", 0)
-                .build();
-
-        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(cleanedDocument));
+        BilibiliVideoSubtitles subtitles = subtitles();
+        when(subtitleCleaningTransformer.cleanCues(cues(subtitles))).thenReturn(List.of());
+        when(subtitleCueChunker.split(page(subtitles), track(subtitles), List.of())).thenReturn(List.of());
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of(sourceDocument)))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of(subtitles)))) {
 
             BusinessException exception = assertThrows(
                     BusinessException.class,
@@ -132,7 +140,6 @@ class VideoServiceImplTest {
             assertEquals(ErrorCode.VIDEO_NO_SUBTITLE.getCode(), exception.getCode());
             assertEquals("已读取到字幕，但清洗后未保留有效内容，当前视频暂不支持导入。", exception.getMessage());
             verify(videoImportTxService, never()).createImportingVideo(any(), any());
-            verify(tokenTextSplitter, never()).apply(any());
             verify(dashVectorStore, never()).add(any());
             verify(videoStatusWriter, never()).markFailed(any(Video.class), any());
             verify(subtitleProbeService, never()).probe(any(), any());
@@ -146,7 +153,7 @@ class VideoServiceImplTest {
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of()))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of()))) {
 
             BusinessException exception = assertThrows(
                     BusinessException.class,
@@ -159,8 +166,7 @@ class VideoServiceImplTest {
                     exception.getMessage()
             );
             verify(videoImportTxService, never()).createImportingVideo(any(), any());
-            verify(subtitleCleaningTransformer, never()).apply(any());
-            verify(tokenTextSplitter, never()).apply(any());
+            verify(subtitleCleaningTransformer, never()).cleanCues(any());
             verify(dashVectorStore, never()).add(any());
             verify(subtitleProbeService, times(1)).probe(any(), any());
         }
@@ -172,10 +178,8 @@ class VideoServiceImplTest {
         when(subtitleProbeService.probe(any(), any())).thenReturn(SubtitleProbeResult.hasSubtitleButton("button found"));
         when(subtitleProbeProperties.getRetryDelaysMillis()).thenReturn(new long[]{0, 0, 0});
 
-        Document sourceDocument = sourceDocument();
-        Document splitDocument = splitDocument();
-        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(sourceDocument));
-        when(tokenTextSplitter.apply(List.of(sourceDocument))).thenReturn(List.of(splitDocument));
+        BilibiliVideoSubtitles subtitles = subtitles();
+        stubChunking(subtitles);
         stubSuccessfulImportFlow();
 
         AtomicInteger attemptCounter = new AtomicInteger();
@@ -184,9 +188,9 @@ class VideoServiceImplTest {
                 (mock, context) -> {
                     int attempt = attemptCounter.incrementAndGet();
                     if (attempt < 3) {
-                        when(mock.get()).thenReturn(List.of());
+                        when(mock.readSubtitles()).thenReturn(List.of());
                     } else {
-                        when(mock.get()).thenReturn(List.of(sourceDocument));
+                        when(mock.readSubtitles()).thenReturn(List.of(subtitles));
                     }
                 })) {
 
@@ -207,7 +211,7 @@ class VideoServiceImplTest {
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of()))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of()))) {
 
             BusinessException exception = assertThrows(
                     BusinessException.class,
@@ -228,18 +232,15 @@ class VideoServiceImplTest {
     void importVideoShouldMarkFailedWhenVectorWriteFails() {
         ImportVideoRequest request = buildRequest();
 
-        Document sourceDocument = sourceDocument();
-        Document splitDocument = splitDocument();
-
-        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(sourceDocument));
-        when(tokenTextSplitter.apply(List.of(sourceDocument))).thenReturn(List.of(splitDocument));
+        BilibiliVideoSubtitles subtitles = subtitles();
+        stubChunking(subtitles);
         Video importingVideo = importingVideo();
         when(videoImportTxService.createImportingVideo(any(PreparedVideoImportData.class), eq(1L))).thenReturn(importingVideo);
         doThrow(new RuntimeException("DashVector 写入失败")).when(dashVectorStore).add(any());
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of(sourceDocument)))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of(subtitles)))) {
 
             assertThrows(BusinessException.class, () -> videoService.importVideo(request, 1L));
 
@@ -255,11 +256,8 @@ class VideoServiceImplTest {
     void importVideoShouldDeleteVectorsWhenFinalizeFailsAfterVectorWrite() {
         ImportVideoRequest request = buildRequest();
 
-        Document sourceDocument = sourceDocument();
-        Document splitDocument = splitDocument();
-
-        when(subtitleCleaningTransformer.apply(List.of(sourceDocument))).thenReturn(List.of(sourceDocument));
-        when(tokenTextSplitter.apply(List.of(sourceDocument))).thenReturn(List.of(splitDocument));
+        BilibiliVideoSubtitles subtitles = subtitles();
+        stubChunking(subtitles);
         Video importingVideo = importingVideo();
         when(videoImportTxService.createImportingVideo(any(PreparedVideoImportData.class), eq(1L))).thenReturn(importingVideo);
         doNothing().when(dashVectorStore).add(any());
@@ -269,7 +267,7 @@ class VideoServiceImplTest {
 
         try (MockedConstruction<BilibiliDocumentReader> ignored = mockConstruction(
                 BilibiliDocumentReader.class,
-                (mock, context) -> when(mock.get()).thenReturn(List.of(sourceDocument)))) {
+                (mock, context) -> when(mock.readSubtitles()).thenReturn(List.of(subtitles)))) {
 
             assertThrows(BusinessException.class, () -> videoService.importVideo(request, 1L));
 
@@ -324,20 +322,32 @@ class VideoServiceImplTest {
         return request;
     }
 
-    private Document sourceDocument() {
-        return Document.builder()
-                .text("视频原文")
-                .metadata(new HashMap<>())
-                .metadata("title", "测试标题")
-                .metadata("description", "测试描述")
-                .build();
+    private BilibiliVideoSubtitles subtitles() {
+        BilibiliSubtitleCue cue = new BilibiliSubtitleCue(
+                new BigDecimal("1.25"), new BigDecimal("3.50"), 1L, 2, "切分片段");
+        BilibiliSubtitleTrack track = new BilibiliSubtitleTrack(10L, "ai-zh", "中文（自动生成）", false, List.of(cue));
+        BilibiliSubtitlePage page = new BilibiliSubtitlePage(123L, 1, "测试分P", List.of(track));
+        return new BilibiliVideoSubtitles("BV1KMwgeKECx", "测试标题", "测试描述", List.of(page));
     }
 
-    private Document splitDocument() {
-        return Document.builder()
-                .text("切分片段")
-                .metadata(new HashMap<>())
-                .build();
+    private void stubChunking(BilibiliVideoSubtitles subtitles) {
+        List<BilibiliSubtitleCue> cues = cues(subtitles);
+        when(subtitleCleaningTransformer.cleanCues(cues)).thenReturn(cues);
+        when(subtitleCueChunker.split(page(subtitles), track(subtitles), cues)).thenReturn(List.of(
+                new TimestampedSubtitleChunk(123L, 1, "ai-zh", 1250L, 3500L, "切分片段")
+        ));
+    }
+
+    private BilibiliSubtitlePage page(BilibiliVideoSubtitles subtitles) {
+        return subtitles.pages().get(0);
+    }
+
+    private BilibiliSubtitleTrack track(BilibiliVideoSubtitles subtitles) {
+        return page(subtitles).tracks().get(0);
+    }
+
+    private List<BilibiliSubtitleCue> cues(BilibiliVideoSubtitles subtitles) {
+        return track(subtitles).cues();
     }
 
     private Video importingVideo() {
