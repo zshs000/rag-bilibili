@@ -190,6 +190,8 @@ public class BilibiliDocumentReader implements DocumentReader {
         for (int index = 0; index < trackCount; index++) {
             JsonNode trackNode = subtitleList.get(index);
             String subtitleUrl = normalizeSubtitleUrl(trackNode.path("subtitle_url").asText(""));
+            // TODO Verify anonymous access with representative AI and manual subtitle samples,
+            // then separate subtitle downloads from authenticated Bilibili API requests.
             List<BilibiliSubtitleCue> cues = subtitleUrl.isBlank()
                     ? List.of()
                     : parseSubtitleCues(parseJson(sendGet(resource, subtitleUrl)));
