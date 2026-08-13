@@ -8,6 +8,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentReader;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -36,37 +38,67 @@ public class BilibiliDocumentReader implements DocumentReader {
     private final BilibiliResource bilibiliResource;
     private final List<BilibiliResource> bilibiliResourceList;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private final HttpTransport httpTransport;
 
     public BilibiliDocumentReader(BilibiliResource bilibiliResource) {
-        this.bilibiliResource = bilibiliResource;
-        this.bilibiliResourceList = null;
-        this.objectMapper = new ObjectMapper();
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+        this(bilibiliResource, new JdkHttpTransport());
     }
 
     public BilibiliDocumentReader(List<BilibiliResource> bilibiliResourceList) {
-        this.bilibiliResource = null;
-        this.bilibiliResourceList = bilibiliResourceList;
+        this(bilibiliResourceList, new JdkHttpTransport());
+    }
+
+    BilibiliDocumentReader(BilibiliResource bilibiliResource, HttpTransport httpTransport) {
+        this.bilibiliResource = Objects.requireNonNull(bilibiliResource, "Bilibili resource must not be null");
+        this.bilibiliResourceList = null;
         this.objectMapper = new ObjectMapper();
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+        this.httpTransport = Objects.requireNonNull(httpTransport, "HTTP transport must not be null");
+    }
+
+    BilibiliDocumentReader(List<BilibiliResource> bilibiliResourceList, HttpTransport httpTransport) {
+        this.bilibiliResource = null;
+        this.bilibiliResourceList = List.copyOf(bilibiliResourceList);
+        this.objectMapper = new ObjectMapper();
+        this.httpTransport = Objects.requireNonNull(httpTransport, "HTTP transport must not be null");
     }
 
     @Override
     public List<Document> get() {
-        List<BilibiliResource> resources = this.bilibiliResourceList;
-        if (resources == null) {
-            resources = List.of(this.bilibiliResource);
-        }
-
         List<Document> documents = new ArrayList<>();
-        for (BilibiliResource resource : resources) {
-            documents.addAll(readResource(resource));
+        for (BilibiliResource resource : resources()) {
+            BilibiliVideoSubtitles subtitles = readResource(resource, TrackSelection.FIRST);
+            if (subtitles == null) {
+                continue;
+            }
+            Document document = toLegacyDocument(subtitles);
+            if (document != null) {
+                documents.add(document);
+            }
         }
         return documents;
     }
 
-    private List<Document> readResource(BilibiliResource resource) {
+    /**
+     * Reads every subtitle track and preserves page, track and cue timing metadata.
+     * A video with pages but no available subtitle track is represented with empty track lists;
+     * a resource with no page data is omitted from the result.
+     */
+    public List<BilibiliVideoSubtitles> readSubtitles() {
+        List<BilibiliVideoSubtitles> videos = new ArrayList<>();
+        for (BilibiliResource resource : resources()) {
+            BilibiliVideoSubtitles subtitles = readResource(resource, TrackSelection.ALL);
+            if (subtitles != null) {
+                videos.add(subtitles);
+            }
+        }
+        return List.copyOf(videos);
+    }
+
+    private List<BilibiliResource> resources() {
+        return bilibiliResourceList == null ? List.of(bilibiliResource) : bilibiliResourceList;
+    }
+
+    private BilibiliVideoSubtitles readResource(BilibiliResource resource, TrackSelection trackSelection) {
         try {
             String bvid = resource.getBvid();
             JsonNode videoData = parseJson(sendGet(resource, API_VIDEO_INFO + "?bvid=" + encode(bvid))).path("data");
@@ -75,33 +107,24 @@ public class BilibiliDocumentReader implements DocumentReader {
 
             JsonNode pageData = parseJson(sendGet(resource, API_PAGE_LIST + "?bvid=" + encode(bvid))).path("data");
             if (!pageData.isArray() || pageData.isEmpty()) {
-                return List.of();
+                return null;
             }
 
-            StringBuilder allTranscripts = new StringBuilder();
+            List<BilibiliSubtitlePage> pages = new ArrayList<>();
+            int fallbackPageNumber = 1;
             for (JsonNode page : pageData) {
                 long cid = page.path("cid").asLong();
-                String transcript = fetchSubtitleTranscript(resource, bvid, cid);
-                if (!transcript.isBlank()) {
-                    if (!allTranscripts.isEmpty()) {
-                        allTranscripts.append('\n');
-                    }
-                    allTranscripts.append(transcript);
-                }
+                int pageNumber = page.path("page").asInt(fallbackPageNumber++);
+                String part = page.path("part").asText("");
+                List<BilibiliSubtitleTrack> tracks = fetchSubtitleTracks(resource, bvid, cid, trackSelection);
+                pages.add(new BilibiliSubtitlePage(cid, pageNumber, part, tracks));
             }
-
-            String mergedTranscript = allTranscripts.toString().trim();
-            if (mergedTranscript.isBlank()) {
-                return List.of();
-            }
-
-            String content = String.format("Video Title: %s, Description: %s%nTranscript: %s", title, description, mergedTranscript);
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("bvid", bvid);
-            metadata.put("document_type", "content");
-            metadata.put("title", title);
-            metadata.put("description", description);
-            return List.of(new Document(content, metadata));
+            return new BilibiliVideoSubtitles(bvid, title, description, pages);
+        }
+        catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            log.error("Failed to read bilibili video: {}", resource.getBvid(), ex);
+            throw new RuntimeException("Failed to read bilibili video: " + resource.getBvid(), ex);
         }
         catch (Exception ex) {
             log.error("Failed to read bilibili video: {}", resource.getBvid(), ex);
@@ -109,7 +132,39 @@ public class BilibiliDocumentReader implements DocumentReader {
         }
     }
 
-    private String fetchSubtitleTranscript(BilibiliResource resource, String bvid, long cid) throws IOException, InterruptedException {
+    private Document toLegacyDocument(BilibiliVideoSubtitles subtitles) {
+        StringBuilder allTranscripts = new StringBuilder();
+        for (BilibiliSubtitlePage page : subtitles.pages()) {
+            if (page.tracks().isEmpty()) {
+                continue;
+            }
+            for (BilibiliSubtitleCue cue : page.tracks().get(0).cues()) {
+                if (!allTranscripts.isEmpty()) {
+                    allTranscripts.append('\n');
+                }
+                allTranscripts.append(cue.content());
+            }
+        }
+
+        String mergedTranscript = allTranscripts.toString().trim();
+        if (mergedTranscript.isBlank()) {
+            return null;
+        }
+
+        String content = String.format("Video Title: %s, Description: %s%nTranscript: %s",
+                subtitles.title(), subtitles.description(), mergedTranscript);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("bvid", subtitles.bvid());
+        metadata.put("document_type", "content");
+        metadata.put("title", subtitles.title());
+        metadata.put("description", subtitles.description());
+        return new Document(content, metadata);
+    }
+
+    private List<BilibiliSubtitleTrack> fetchSubtitleTracks(BilibiliResource resource,
+                                                            String bvid,
+                                                            long cid,
+                                                            TrackSelection trackSelection) throws IOException, InterruptedException {
         String mixinKey = getMixinKey(resource);
         Map<String, Object> params = new TreeMap<>();
         params.put("bvid", bvid);
@@ -127,30 +182,63 @@ public class BilibiliDocumentReader implements DocumentReader {
         JsonNode subtitleList = playerData.path("subtitle").path("subtitles");
 
         if (!subtitleList.isArray() || subtitleList.isEmpty()) {
-            return "";
+            return List.of();
         }
 
-        String subtitleUrl = subtitleList.get(0).path("subtitle_url").asText("");
-        if (subtitleUrl.startsWith("//")) {
-            subtitleUrl = "https:" + subtitleUrl;
+        int trackCount = trackSelection == TrackSelection.FIRST ? 1 : subtitleList.size();
+        List<BilibiliSubtitleTrack> tracks = new ArrayList<>(trackCount);
+        for (int index = 0; index < trackCount; index++) {
+            JsonNode trackNode = subtitleList.get(index);
+            String subtitleUrl = normalizeSubtitleUrl(trackNode.path("subtitle_url").asText(""));
+            List<BilibiliSubtitleCue> cues = subtitleUrl.isBlank()
+                    ? List.of()
+                    : parseSubtitleCues(parseJson(sendGet(resource, subtitleUrl)));
+            tracks.add(new BilibiliSubtitleTrack(
+                    nullableLong(trackNode.path("id")),
+                    trackNode.path("lan").asText(""),
+                    trackNode.path("lan_doc").asText(""),
+                    trackNode.path("is_lock").asBoolean(false),
+                    cues
+            ));
         }
-        if (subtitleUrl.isBlank()) {
-            return "";
-        }
+        return List.copyOf(tracks);
+    }
 
-        JsonNode subtitleJson = parseJson(sendGet(resource, subtitleUrl));
-        StringBuilder transcript = new StringBuilder();
+    private List<BilibiliSubtitleCue> parseSubtitleCues(JsonNode subtitleJson) {
+        List<BilibiliSubtitleCue> cues = new ArrayList<>();
         for (JsonNode node : subtitleJson.path("body")) {
             String segment = node.path("content").asText("").trim();
             if (segment.isBlank()) {
                 continue;
             }
-            if (!transcript.isEmpty()) {
-                transcript.append('\n');
-            }
-            transcript.append(segment);
+            cues.add(new BilibiliSubtitleCue(
+                    nullableDecimal(node.path("from")),
+                    nullableDecimal(node.path("to")),
+                    nullableLong(node.path("sid")),
+                    nullableInteger(node.path("location")),
+                    segment
+            ));
         }
-        return transcript.toString().trim();
+        return List.copyOf(cues);
+    }
+
+    private String normalizeSubtitleUrl(String subtitleUrl) {
+        if (subtitleUrl.startsWith("//")) {
+            return "https:" + subtitleUrl;
+        }
+        return subtitleUrl;
+    }
+
+    private BigDecimal nullableDecimal(JsonNode node) {
+        return node.isNumber() ? node.decimalValue() : null;
+    }
+
+    private Long nullableLong(JsonNode node) {
+        return node.isNumber() ? node.longValue() : null;
+    }
+
+    private Integer nullableInteger(JsonNode node) {
+        return node.isNumber() ? node.intValue() : null;
     }
 
     private String getMixinKey(BilibiliResource resource) throws IOException, InterruptedException {
@@ -171,22 +259,10 @@ public class BilibiliDocumentReader implements DocumentReader {
     }
 
     private String sendGet(BilibiliResource resource, String url) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .GET()
-                .timeout(Duration.ofSeconds(30))
-                .header("Accept", "application/json")
-                .header("User-Agent", userAgent())
-                .header("Cookie", buildCookieHeader(resource.getCredentials()))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("HTTP " + response.statusCode() + " for url: " + url);
-        }
-        return response.body();
+        return httpTransport.get(resource, url);
     }
 
-    private String buildCookieHeader(BilibiliCredentials credentials) {
+    private static String buildCookieHeader(BilibiliCredentials credentials) {
         if (credentials == null) {
             return "";
         }
@@ -203,7 +279,7 @@ public class BilibiliDocumentReader implements DocumentReader {
         return String.join("; ", cookies);
     }
 
-    private boolean hasText(String value) {
+    private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
@@ -220,7 +296,7 @@ public class BilibiliDocumentReader implements DocumentReader {
         return dotIndex >= 0 ? fileName.substring(0, dotIndex) : fileName;
     }
 
-    private String userAgent() {
+    private static String userAgent() {
         return String.format("SpringAIAlibaba/1.0.0; java/%s; platform/%s; processor/%s", System.getProperty("java.version"), System.getProperty("os.name"), System.getProperty("os.arch"));
     }
 
@@ -245,5 +321,41 @@ public class BilibiliDocumentReader implements DocumentReader {
 
     private JsonNode parseJson(String json) throws IOException {
         return objectMapper.readTree(json);
+    }
+
+    @FunctionalInterface
+    interface HttpTransport {
+        String get(BilibiliResource resource, String url) throws IOException, InterruptedException;
+    }
+
+    private static final class JdkHttpTransport implements HttpTransport {
+        private final HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(15))
+                .build();
+
+        @Override
+        public String get(BilibiliResource resource, String url) throws IOException, InterruptedException {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .GET()
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Accept", "application/json")
+                    .header("User-Agent", userAgent())
+                    .header("Cookie", buildCookieHeader(resource.getCredentials()))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IOException("HTTP " + response.statusCode() + " for url: " + url);
+            }
+            return response.body();
+        }
+    }
+
+    private enum TrackSelection {
+        FIRST,
+        ALL
     }
 }
