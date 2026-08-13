@@ -45,6 +45,9 @@ public class SubtitleCueChunker {
         int chunkCount = Math.max(minimumChunkCount, Math.min(idealChunkCount, maximumChunkCount));
 
         List<Integer> boundaries = partition(cues, chunkCount);
+        while (exceedsMaxTokens(cues, boundaries, maxTokens) && chunkCount < cues.size()) {
+            boundaries = partition(cues, ++chunkCount);
+        }
         List<TimestampedSubtitleChunk> chunks = new ArrayList<>(boundaries.size());
         int uniqueStart = 0;
         for (int uniqueEnd : boundaries) {
@@ -109,6 +112,17 @@ public class SubtitleCueChunker {
             chunkStart = candidate;
         }
         return chunkStart;
+    }
+
+    private boolean exceedsMaxTokens(List<BilibiliSubtitleCue> cues, List<Integer> boundaries, int maxTokens) {
+        int start = 0;
+        for (int end : boundaries) {
+            if (estimate(cues, start, end) > maxTokens && end > start + 1) {
+                return true;
+            }
+            start = end;
+        }
+        return false;
     }
 
     private int estimate(List<BilibiliSubtitleCue> cues, int start, int end) {

@@ -38,19 +38,41 @@ class SubtitleCueChunkerTest {
         assertFalse(chunks.get(0).text().contains("cue-5 "));
     }
 
+    @Test
+    void shouldIncreaseChunkCountWhenCueBoundariesWouldExceedMaxTokens() {
+        SubtitleCueChunker chunker = new SubtitleCueChunker(
+                new SubtitleChunkingProperties(), new WordTokenEstimator());
+        List<BilibiliSubtitleCue> cues = List.of(
+                cue(0, 290),
+                cue(1, 310),
+                cue(2, 300)
+        );
+        BilibiliSubtitleTrack track = new BilibiliSubtitleTrack(1L, "ai-zh", "", false, cues);
+        BilibiliSubtitlePage page = new BilibiliSubtitlePage(123L, 1, "测试", List.of(track));
+
+        List<TimestampedSubtitleChunk> chunks = chunker.split(page, track, cues);
+
+        assertEquals(3, chunks.size());
+        assertTrue(chunks.stream().allMatch(chunk -> tokenCount(chunk.text()) <= 500));
+    }
+
     private List<BilibiliSubtitleCue> cues(int count, int tokensPerCue) {
         List<BilibiliSubtitleCue> cues = new ArrayList<>();
         for (int index = 0; index < count; index++) {
-            String text = "cue-" + index + " " + "word ".repeat(tokensPerCue - 1).trim();
-            cues.add(new BilibiliSubtitleCue(
-                    BigDecimal.valueOf(index),
-                    BigDecimal.valueOf(index + 1L),
-                    (long) index,
-                    2,
-                    text
-            ));
+            cues.add(cue(index, tokensPerCue));
         }
         return cues;
+    }
+
+    private BilibiliSubtitleCue cue(int index, int tokenCount) {
+        String text = "cue-" + index + " " + "word ".repeat(tokenCount - 1).trim();
+        return new BilibiliSubtitleCue(
+                BigDecimal.valueOf(index),
+                BigDecimal.valueOf(index + 1L),
+                (long) index,
+                2,
+                text
+        );
     }
 
     private int tokenCount(String text) {
