@@ -61,7 +61,7 @@ export const useAuthStore = defineStore("auth", () => {
         saveToken(result.token);
       }
       user.value = result;
-      logger.info("auth", "用户登录成功", user.value);
+      logger.info("auth", "用户登录成功");
       return user.value;
     } finally {
       initialized.value = true;

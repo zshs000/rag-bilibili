@@ -71,7 +71,7 @@
           <div class="surface-strong card-section">
             <strong>填写建议</strong>
             <p class="card-caption top-gap">
-              为了保护账号信息，凭证只会临时保留在当前浏览器标签页中，方便你短时间内重复导入。
+              为了保护账号信息，凭证仅用于当前导入请求，不会自动保存到浏览器存储中。
             </p>
           </div>
           <div v-if="result" class="surface-strong card-section">
@@ -96,7 +96,7 @@
 
 <script setup>
 import { ElMessage } from "element-plus";
-import { reactive, ref, watch } from "vue";
+import { reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
 
 import AppShell from "../components/AppShell.vue";
@@ -118,39 +118,7 @@ const form = reactive({
   buvid3: "",
 });
 
-loadCredentials();
-
-watch(
-  () => ({ ...form }),
-  () => {
-    saveCredentials();
-  },
-  { deep: true }
-);
-
-function saveCredentials() {
-  const payload = {
-    sessdata: form.sessdata,
-    biliJct: form.biliJct,
-    buvid3: form.buvid3,
-  };
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-}
-
-function loadCredentials() {
-  const raw = sessionStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return;
-  }
-  try {
-    const payload = JSON.parse(raw);
-    form.sessdata = payload.sessdata || "";
-    form.biliJct = payload.biliJct || "";
-    form.buvid3 = payload.buvid3 || "";
-  } catch {
-    sessionStorage.removeItem(STORAGE_KEY);
-  }
-}
+sessionStorage.removeItem(STORAGE_KEY);
 
 function clearCredentials() {
   form.sessdata = "";

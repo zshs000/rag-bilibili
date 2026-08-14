@@ -19,7 +19,7 @@ export const messagesApi = {
     }
     const url = resolveApiPath(`/sessions/${sessionId}/messages/stream`);
     const token = getToken();
-    logger.info("chat", `开始流式请求 ${url}`, payload);
+    logger.info("chat", `开始流式请求 ${url}`);
 
     const response = await fetch(url, {
       method: "POST",
