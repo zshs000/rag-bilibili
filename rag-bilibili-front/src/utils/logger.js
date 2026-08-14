@@ -1,4 +1,5 @@
 const SENSITIVE_KEYS = new Set([
+  "token",
   "password",
   "sessdata",
   "biliJct",

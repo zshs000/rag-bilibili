@@ -20,6 +20,20 @@ export function removeToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+export function handleNotLoggedIn(normalized) {
+  const currentPath = window.location.pathname;
+  if (
+    !isDeveloperModeEnabled() &&
+    normalized.code === ERROR_CODES.NOT_LOGGED_IN &&
+    currentPath !== "/login" &&
+    currentPath !== "/register"
+  ) {
+    removeToken();
+    const redirect = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+    window.location.assign(`/login?redirect=${redirect}`);
+  }
+}
+
 export const http = axios.create({
   baseURL: apiBaseUrl || "/",
   timeout: 20000,
@@ -46,14 +60,14 @@ http.interceptors.response.use(
     });
 
     if (payload?.code !== 200) {
-      return Promise.reject(
-        normalizeError({
-          response: {
-            data: payload,
-            status: response.status,
-          },
-        })
-      );
+      const normalized = normalizeError({
+        response: {
+          data: payload,
+          status: response.status,
+        },
+      });
+      handleNotLoggedIn(normalized);
+      return Promise.reject(normalized);
     }
 
     return payload.data;
@@ -62,17 +76,7 @@ http.interceptors.response.use(
     const normalized = normalizeError(error);
     logger.error("http", normalized.message, sanitizeForLog(normalized.detail));
 
-    const currentPath = window.location.pathname;
-    if (
-      !isDeveloperModeEnabled() &&
-      normalized.code === ERROR_CODES.NOT_LOGGED_IN &&
-      currentPath !== "/login" &&
-      currentPath !== "/register"
-    ) {
-      removeToken();
-      const redirect = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-      window.location.assign(`/login?redirect=${redirect}`);
-    }
+    handleNotLoggedIn(normalized);
 
     return Promise.reject(normalized);
   }

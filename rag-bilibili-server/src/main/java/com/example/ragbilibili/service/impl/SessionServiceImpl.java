@@ -55,7 +55,7 @@ public class SessionServiceImpl implements SessionService {
         Session session = new Session();
         session.setUserId(userId);
         session.setSessionType(sessionType);
-        session.setVideoId(request.getVideoId());
+        session.setVideoId(sessionType.equals(SessionType.SINGLE_VIDEO.getCode()) ? request.getVideoId() : null);
         session.setCreateTime(LocalDateTime.now());
 
         sessionMapper.insert(session);

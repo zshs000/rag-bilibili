@@ -1,6 +1,8 @@
 package com.example.ragbilibili.service.impl;
 
+import com.example.ragbilibili.dto.request.CreateSessionRequest;
 import com.example.ragbilibili.dto.response.SessionResponse;
+import com.example.ragbilibili.entity.Session;
 import com.example.ragbilibili.entity.SessionWithVideoTitle;
 import com.example.ragbilibili.mapper.MessageMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
@@ -9,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -59,6 +62,21 @@ class SessionServiceImplTest {
         assertEquals("测试视频", responses.get(0).getVideoTitle());
         assertEquals("ALL_VIDEOS", responses.get(1).getSessionType());
         verify(sessionMapper).selectWithVideoTitleByUserId(1L);
+        verifyNoInteractions(videoMapper);
+    }
+
+    @Test
+    void createAllVideosSessionShouldIgnoreSuppliedVideoId() {
+        CreateSessionRequest request = new CreateSessionRequest();
+        request.setSessionType("ALL_VIDEOS");
+        request.setVideoId(999L);
+
+        SessionResponse response = sessionService.createSession(request, 1L);
+
+        ArgumentCaptor<Session> sessionCaptor = ArgumentCaptor.forClass(Session.class);
+        verify(sessionMapper).insert(sessionCaptor.capture());
+        assertEquals(null, sessionCaptor.getValue().getVideoId());
+        assertEquals(null, response.getVideoId());
         verifyNoInteractions(videoMapper);
     }
 }

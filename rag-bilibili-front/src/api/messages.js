@@ -1,4 +1,4 @@
-import { getToken, http } from "./http";
+import { getToken, handleNotLoggedIn, http } from "./http";
 import { devServer } from "../mock/dev-server";
 import { resolveApiPath } from "../config/env";
 import { isDeveloperModeEnabled } from "../utils/dev-mode";
@@ -19,7 +19,7 @@ export const messagesApi = {
     }
     const url = resolveApiPath(`/sessions/${sessionId}/messages/stream`);
     const token = getToken();
-    logger.info("chat", `开始流式请求 ${url}`, payload);
+    logger.info("chat", `开始流式请求 ${url}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -31,7 +31,8 @@ export const messagesApi = {
       signal,
     });
 
-    if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.toLowerCase().startsWith("text/event-stream")) {
       let errorPayload = null;
       try {
         errorPayload = await response.json();
@@ -39,12 +40,14 @@ export const messagesApi = {
         // ignore parse error
       }
 
-      throw normalizeError({
+      const normalized = normalizeError({
         response: {
           status: response.status,
           data: errorPayload,
         },
       });
+      handleNotLoggedIn(normalized);
+      throw normalized;
     }
 
     return consumeSseStream(response, handlers);
