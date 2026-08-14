@@ -4,11 +4,13 @@ import com.example.ragbilibili.dto.sse.SseContentEvent;
 import com.example.ragbilibili.dto.sse.SseEndEvent;
 import com.example.ragbilibili.dto.sse.SseErrorEvent;
 import com.example.ragbilibili.dto.sse.SseStartEvent;
+import com.example.ragbilibili.dto.response.MessageSourceResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.List;
 
 class SseEventSerializationTest {
 
@@ -32,11 +34,17 @@ class SseEventSerializationTest {
 
     @Test
     void shouldSerializeEndEventWithAssistantMessageIdAndFullContent() throws Exception {
-        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(new SseEndEvent(22L, "完整回答")));
+        MessageSourceResponse source = new MessageSourceResponse();
+        source.setIndex(1);
+        source.setJumpUrl("https://www.bilibili.com/video/BV1iH3763Ezm/?p=1&t=127.5");
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(
+                new SseEndEvent(22L, "完整回答[1]", List.of(source))));
 
         assertEquals("end", json.get("type").asText());
         assertEquals(22L, json.get("assistantMessageId").asLong());
-        assertEquals("完整回答", json.get("fullContent").asText());
+        assertEquals("完整回答[1]", json.get("fullContent").asText());
+        assertEquals(1, json.get("sources").get(0).get("index").asInt());
+        assertEquals(source.getJumpUrl(), json.get("sources").get(0).get("jumpUrl").asText());
     }
 
     @Test

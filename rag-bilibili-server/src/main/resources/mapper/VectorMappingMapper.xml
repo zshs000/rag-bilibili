@@ -30,4 +30,24 @@
         DELETE FROM vector_mapping WHERE video_id = #{videoId}
     </delete>
 
+    <select id="selectRetrievedSourcesByVectorIds"
+            resultType="com.example.ragbilibili.entity.RetrievedChunkSource">
+        SELECT vm.vector_id AS vectorId,
+               c.bvid AS bvid,
+               c.title AS videoTitle,
+               c.cid AS cid,
+               c.page_number AS pageNumber,
+               c.start_time_ms AS startTimeMs,
+               c.end_time_ms AS endTimeMs,
+               c.chunk_text AS snippet
+        FROM vector_mapping vm
+        INNER JOIN chunk c ON c.id = vm.chunk_id
+        WHERE vm.user_id = #{userId}
+          AND c.user_id = #{userId}
+          AND vm.vector_id IN
+        <foreach collection="vectorIds" item="vectorId" open="(" separator="," close=")">
+            #{vectorId}
+        </foreach>
+    </select>
+
 </mapper>

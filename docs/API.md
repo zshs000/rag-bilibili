@@ -226,8 +226,10 @@ data: {"type":"content","delta":"这个视频"}
 **结束事件**
 ```
 event: end
-data: {"type":"end","assistantMessageId":2,"fullContent":"完整回答"}
+data: {"type":"end","assistantMessageId":2,"fullContent":"完整回答[1]","sources":[{"index":1,"bvid":"BV1DCfsBKExV","videoTitle":"视频标题","pageNumber":1,"startTimeMs":130000,"endTimeMs":156000,"snippet":"回答所依据的字幕片段","jumpUrl":"https://www.bilibili.com/video/BV1DCfsBKExV/?p=1&t=127.5"}]}
 ```
+
+`sources` 始终为数组，只包含回答正文中实际出现且可映射到本次检索结果的 `[n]` 引用。旧消息、用户消息或没有合法引用的回答返回空数组。跳转地址由后端根据来源快照生成，默认比字幕片段起点提前 2.5 秒。
 
 **错误事件**
 ```
@@ -290,8 +292,26 @@ data: {"type":"error","message":"错误信息"}
   "id": 1,
   "role": "USER",
   "content": "这个视频讲了什么？",
-  "createTime": "2026-05-12 10:00:00"
+  "createTime": "2026-05-12 10:00:00",
+  "sources": []
 }
 ```
 
 `role`：`USER` / `ASSISTANT`
+
+助手消息引用来源时，`sources` 元素结构如下：
+
+```json
+{
+  "index": 1,
+  "bvid": "BV1DCfsBKExV",
+  "videoTitle": "视频标题",
+  "pageNumber": 1,
+  "startTimeMs": 130000,
+  "endTimeMs": 156000,
+  "snippet": "回答所依据的字幕片段",
+  "jumpUrl": "https://www.bilibili.com/video/BV1DCfsBKExV/?p=1&t=127.5"
+}
+```
+
+该结构是生成回答时的来源快照，不依赖对应视频继续保存在本地知识库中。`jumpUrl` 指向 B站网页端对应分 P 和时间位置。

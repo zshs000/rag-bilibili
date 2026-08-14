@@ -5,6 +5,7 @@ import com.example.ragbilibili.dto.response.SessionResponse;
 import com.example.ragbilibili.entity.Session;
 import com.example.ragbilibili.entity.SessionWithVideoTitle;
 import com.example.ragbilibili.mapper.MessageMapper;
+import com.example.ragbilibili.mapper.MessageSourceMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class SessionServiceImplTest {
 
     @Mock
     private MessageMapper messageMapper;
+
+    @Mock
+    private MessageSourceMapper messageSourceMapper;
 
     @InjectMocks
     private SessionServiceImpl sessionService;

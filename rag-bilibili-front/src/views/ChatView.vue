@@ -48,9 +48,14 @@
             <MarkdownContent
               v-if="message.role === 'ASSISTANT'"
               :content="message.content || '...'"
+              :sources="message.sources || []"
               class="message-content"
             />
             <p v-else class="message-content">{{ message.content || "..." }}</p>
+            <MessageSources
+              v-if="message.role === 'ASSISTANT'"
+              :sources="message.sources || []"
+            />
           </article>
         </div>
 
@@ -134,6 +139,7 @@ import AppShell from "../components/AppShell.vue";
 import EmptyState from "../components/EmptyState.vue";
 import StatusPill from "../components/StatusPill.vue";
 import MarkdownContent from "../components/MarkdownContent.vue";
+import MessageSources from "../components/MessageSources.vue";
 import { messagesApi } from "../api/messages";
 import { sessionsApi } from "../api/sessions";
 import { MESSAGE_ROLE_META } from "../constants/options";
@@ -278,6 +284,7 @@ async function sendMessage() {
     id: null,
     role: "ASSISTANT",
     content: "",
+    sources: [],
     createTime: new Date().toISOString(),
   });
 
@@ -314,6 +321,7 @@ async function sendMessage() {
             ...current,
             id: payload.assistantMessageId || current.id,
             content: payload.fullContent || current.content,
+            sources: payload.sources || current.sources || [],
           }));
           logger.info("chat", "收到 end 事件", payload);
         },

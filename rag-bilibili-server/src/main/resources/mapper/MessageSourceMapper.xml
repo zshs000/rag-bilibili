@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.MessageSourceMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.MessageSource">
+        <id column="id" property="id"/>
+        <result column="message_id" property="messageId"/>
+        <result column="citation_index" property="citationIndex"/>
+        <result column="vector_id" property="vectorId"/>
+        <result column="bvid" property="bvid"/>
+        <result column="video_title" property="videoTitle"/>
+        <result column="cid" property="cid"/>
+        <result column="page_number" property="pageNumber"/>
+        <result column="start_time_ms" property="startTimeMs"/>
+        <result column="end_time_ms" property="endTimeMs"/>
+        <result column="snippet" property="snippet"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message_source
+            (message_id, citation_index, vector_id, bvid, video_title, cid, page_number,
+             start_time_ms, end_time_ms, snippet, create_time)
+        VALUES
+        <foreach collection="sources" item="source" separator=",">
+            (#{source.messageId}, #{source.citationIndex}, #{source.vectorId}, #{source.bvid},
+             #{source.videoTitle}, #{source.cid}, #{source.pageNumber}, #{source.startTimeMs},
+             #{source.endTimeMs}, #{source.snippet}, #{source.createTime})
+        </foreach>
+    </insert>
+
+    <select id="selectByMessageIds" resultMap="BaseResultMap">
+        SELECT id, message_id, citation_index, vector_id, bvid, video_title, cid, page_number,
+               start_time_ms, end_time_ms, snippet, create_time
+        FROM message_source
+        WHERE message_id IN
+        <foreach collection="messageIds" item="messageId" open="(" separator="," close=")">
+            #{messageId}
+        </foreach>
+        ORDER BY message_id ASC, citation_index ASC
+    </select>
+
+    <delete id="deleteBySessionId">
+        DELETE ms
+        FROM message_source ms
+        INNER JOIN message m ON m.id = ms.message_id
+        WHERE m.session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteBySessionIds">
+        DELETE ms
+        FROM message_source ms
+        INNER JOIN message m ON m.id = ms.message_id
+        WHERE m.session_id IN
+        <foreach collection="sessionIds" item="sessionId" open="(" separator="," close=")">
+            #{sessionId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteByVideoIdSessions">
+        DELETE ms
+        FROM message_source ms
+        INNER JOIN message m ON m.id = ms.message_id
+        INNER JOIN session s ON s.id = m.session_id
+        WHERE s.video_id = #{videoId}
+    </delete>
+
+</mapper>

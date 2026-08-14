@@ -5,6 +5,7 @@ import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.ChunkMapper;
 import com.example.ragbilibili.mapper.MessageMapper;
+import com.example.ragbilibili.mapper.MessageSourceMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VectorMappingMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
@@ -42,6 +43,9 @@ class VideoDeleteTxServiceTest {
     @Mock
     private MessageMapper messageMapper;
 
+    @Mock
+    private MessageSourceMapper messageSourceMapper;
+
     @InjectMocks
     private VideoDeleteTxService videoDeleteTxService;
 
@@ -59,9 +63,11 @@ class VideoDeleteTxServiceTest {
         List<String> result = videoDeleteTxService.deleteVideoData(100L, 1L);
 
         assertEquals(vectorIds, result);
-        InOrder inOrder = inOrder(videoMapper, vectorMappingMapper, sessionMapper, messageMapper, chunkMapper);
+        InOrder inOrder = inOrder(videoMapper, vectorMappingMapper, sessionMapper, messageMapper,
+                messageSourceMapper, chunkMapper);
         inOrder.verify(videoMapper).selectById(100L);
         inOrder.verify(vectorMappingMapper).selectVectorIdsByVideoId(100L);
+        inOrder.verify(messageSourceMapper).deleteByVideoIdSessions(100L);
         inOrder.verify(messageMapper).deleteByVideoId(100L);
         inOrder.verify(sessionMapper).deleteByVideoId(100L);
         inOrder.verify(vectorMappingMapper).deleteByVideoId(100L);
@@ -80,6 +86,7 @@ class VideoDeleteTxServiceTest {
         List<String> result = videoDeleteTxService.deleteVideoData(100L, 1L);
 
         assertEquals(List.of(), result);
+        verify(messageSourceMapper).deleteByVideoIdSessions(100L);
         verify(messageMapper).deleteByVideoId(100L);
         verify(sessionMapper, never()).selectIdsByVideoId(100L);
     }

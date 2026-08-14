@@ -9,6 +9,7 @@ import com.example.ragbilibili.enums.SessionType;
 import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.MessageMapper;
+import com.example.ragbilibili.mapper.MessageSourceMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.service.SessionService;
@@ -31,6 +32,9 @@ public class SessionServiceImpl implements SessionService {
 
     @Autowired
     private MessageMapper messageMapper;
+
+    @Autowired
+    private MessageSourceMapper messageSourceMapper;
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -88,6 +92,7 @@ public class SessionServiceImpl implements SessionService {
             throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
         }
 
+        messageSourceMapper.deleteBySessionId(sessionId);
         messageMapper.deleteBySessionId(sessionId);
         sessionMapper.deleteById(sessionId);
     }

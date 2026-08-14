@@ -5,6 +5,7 @@ import com.example.ragbilibili.exception.BusinessException;
 import com.example.ragbilibili.exception.ErrorCode;
 import com.example.ragbilibili.mapper.ChunkMapper;
 import com.example.ragbilibili.mapper.MessageMapper;
+import com.example.ragbilibili.mapper.MessageSourceMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VectorMappingMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
@@ -39,6 +40,9 @@ public class VideoDeleteTxService {
     @Autowired
     private MessageMapper messageMapper;
 
+    @Autowired
+    private MessageSourceMapper messageSourceMapper;
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<String> deleteVideoData(Long videoId, Long userId) {
         Video video = videoMapper.selectById(videoId);
@@ -47,6 +51,7 @@ public class VideoDeleteTxService {
         }
 
         List<String> vectorIds = vectorMappingMapper.selectVectorIdsByVideoId(videoId);
+        messageSourceMapper.deleteByVideoIdSessions(videoId);
         messageMapper.deleteByVideoId(videoId);
 
         sessionMapper.deleteByVideoId(videoId);

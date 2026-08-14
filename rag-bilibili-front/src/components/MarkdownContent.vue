@@ -12,6 +12,10 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  sources: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 // 配置marked
@@ -25,9 +29,18 @@ const renderedHtml = computed(() => {
     return "";
   }
   try {
-    const rawHtml = marked.parse(props.content);
+    const sourceByIndex = new Map(
+      props.sources
+        .filter((source) => source?.index && isTrustedJumpUrl(source.jumpUrl))
+        .map((source) => [String(source.index), source])
+    );
+    const contentWithLinks = props.content.replace(/\[(\d+)]/g, (matched, index) => {
+      const source = sourceByIndex.get(index);
+      return source ? `[${matched}](${source.jumpUrl} "跳转到视频来源")` : matched;
+    });
+    const rawHtml = marked.parse(contentWithLinks);
     // 使用DOMPurify净化HTML，防止XSS攻击
-    return DOMPurify.sanitize(rawHtml, {
+    const sanitized = DOMPurify.sanitize(rawHtml, {
       ALLOWED_TAGS: [
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'p', 'br', 'hr',
@@ -36,14 +49,33 @@ const renderedHtml = computed(() => {
         'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
         'img', 'span', 'div'
       ],
-      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'],
       ALLOW_DATA_ATTR: false,
     });
+    const container = document.createElement("div");
+    container.innerHTML = sanitized;
+    container.querySelectorAll("a").forEach((anchor) => {
+      if (isTrustedJumpUrl(anchor.href)) {
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.classList.add("source-citation-link");
+      }
+    });
+    return container.innerHTML;
   } catch (error) {
     console.error("Markdown解析失败:", error);
     return DOMPurify.sanitize(props.content);
   }
 });
+
+function isTrustedJumpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "www.bilibili.com";
+  } catch {
+    return false;
+  }
+}
 </script>
 
 <style scoped>
@@ -131,6 +163,11 @@ const renderedHtml = computed(() => {
 
 .markdown-content :deep(a:hover) {
   text-decoration: underline;
+}
+
+.markdown-content :deep(.source-citation-link) {
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .markdown-content :deep(table) {

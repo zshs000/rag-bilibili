@@ -2,6 +2,9 @@ package com.example.ragbilibili.dto.response;
 
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 消息响应
  */
@@ -11,4 +14,5 @@ public class MessageResponse {
     private String role;
     private String content;
     private String createTime;
+    private List<MessageSourceResponse> sources = new ArrayList<>();
 }
