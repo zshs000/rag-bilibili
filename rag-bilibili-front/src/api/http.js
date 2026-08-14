@@ -20,7 +20,7 @@ export function removeToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-function handleNotLoggedIn(normalized) {
+export function handleNotLoggedIn(normalized) {
   const currentPath = window.location.pathname;
   if (
     !isDeveloperModeEnabled() &&
