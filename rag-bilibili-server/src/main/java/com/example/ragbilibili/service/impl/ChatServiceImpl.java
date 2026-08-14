@@ -171,7 +171,7 @@ public class ChatServiceImpl implements ChatService {
                                 List<MessageSource> citedSources = citationService.extractCitedSources(
                                         fullResponse.toString(), sourceCandidates);
                                 Message assistantMessage = assistantMessageTxService.save(
-                                        sessionId, fullResponse.toString(), citedSources);
+                                        sessionId, userId, fullResponse.toString(), citedSources);
 
                                 // 14. 发送end事件
                                 SseEndEvent endEvent = new SseEndEvent(

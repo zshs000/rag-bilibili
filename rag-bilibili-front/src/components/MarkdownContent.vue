@@ -6,6 +6,7 @@
 import { computed } from "vue";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { isTrustedBilibiliJumpUrl } from "../utils/bilibili-url";
 
 const props = defineProps({
   content: {
@@ -31,14 +32,10 @@ const renderedHtml = computed(() => {
   try {
     const sourceByIndex = new Map(
       props.sources
-        .filter((source) => source?.index && isTrustedJumpUrl(source.jumpUrl))
+        .filter((source) => source?.index && isTrustedBilibiliJumpUrl(source.jumpUrl))
         .map((source) => [String(source.index), source])
     );
-    const contentWithLinks = props.content.replace(/\[(\d+)]/g, (matched, index) => {
-      const source = sourceByIndex.get(index);
-      return source ? `[${matched}](${source.jumpUrl} "跳转到视频来源")` : matched;
-    });
-    const rawHtml = marked.parse(contentWithLinks);
+    const rawHtml = marked.parse(props.content);
     // 使用DOMPurify净化HTML，防止XSS攻击
     const sanitized = DOMPurify.sanitize(rawHtml, {
       ALLOWED_TAGS: [
@@ -54,11 +51,11 @@ const renderedHtml = computed(() => {
     });
     const container = document.createElement("div");
     container.innerHTML = sanitized;
+    linkCitationTextNodes(container, sourceByIndex);
     container.querySelectorAll("a").forEach((anchor) => {
-      if (isTrustedJumpUrl(anchor.href)) {
+      if (anchor.classList.contains("source-citation-link")) {
         anchor.target = "_blank";
         anchor.rel = "noopener noreferrer";
-        anchor.classList.add("source-citation-link");
       }
     });
     return container.innerHTML;
@@ -68,13 +65,41 @@ const renderedHtml = computed(() => {
   }
 });
 
-function isTrustedJumpUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "www.bilibili.com";
-  } catch {
-    return false;
+function linkCitationTextNodes(container, sourceByIndex) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!node.parentElement?.closest("a, code, pre")) {
+      textNodes.push(node);
+    }
   }
+
+  textNodes.forEach((textNode) => {
+    const text = textNode.nodeValue || "";
+    const pattern = /\[(\d+)]/g;
+    let cursor = 0;
+    let matched;
+    const fragment = document.createDocumentFragment();
+    while ((matched = pattern.exec(text)) !== null) {
+      const source = sourceByIndex.get(matched[1]);
+      if (!source) {
+        continue;
+      }
+      fragment.append(document.createTextNode(text.slice(cursor, matched.index)));
+      const anchor = document.createElement("a");
+      anchor.href = source.jumpUrl;
+      anchor.title = "跳转到视频来源";
+      anchor.className = "source-citation-link";
+      anchor.textContent = matched[0];
+      fragment.append(anchor);
+      cursor = matched.index + matched[0].length;
+    }
+    if (cursor > 0) {
+      fragment.append(document.createTextNode(text.slice(cursor)));
+      textNode.replaceWith(fragment);
+    }
+  });
 }
 </script>
 

@@ -8,17 +8,22 @@ import com.example.ragbilibili.mapper.MessageMapper;
 import com.example.ragbilibili.mapper.MessageSourceMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
+import com.example.ragbilibili.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -82,5 +87,33 @@ class SessionServiceImplTest {
         assertEquals(null, sessionCaptor.getValue().getVideoId());
         assertEquals(null, response.getVideoId());
         verifyNoInteractions(videoMapper);
+    }
+
+    @Test
+    void deleteSessionShouldDeleteSourcesBeforeMessages() {
+        Session session = new Session();
+        session.setId(5L);
+        session.setUserId(1L);
+        when(sessionMapper.selectById(5L)).thenReturn(session);
+
+        sessionService.deleteSession(5L, 1L);
+
+        InOrder inOrder = inOrder(messageSourceMapper, messageMapper, sessionMapper);
+        inOrder.verify(messageSourceMapper).deleteBySessionId(5L);
+        inOrder.verify(messageMapper).deleteBySessionId(5L);
+        inOrder.verify(sessionMapper).deleteById(5L);
+    }
+
+    @Test
+    void deleteSessionShouldNotCleanUpForeignSession() {
+        Session session = new Session();
+        session.setId(5L);
+        session.setUserId(2L);
+        when(sessionMapper.selectById(5L)).thenReturn(session);
+
+        assertThrows(BusinessException.class, () -> sessionService.deleteSession(5L, 1L));
+
+        verify(messageSourceMapper, never()).deleteBySessionId(5L);
+        verify(messageMapper, never()).deleteBySessionId(5L);
     }
 }

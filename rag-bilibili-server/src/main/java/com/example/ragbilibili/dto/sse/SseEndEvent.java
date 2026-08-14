@@ -1,6 +1,5 @@
 package com.example.ragbilibili.dto.sse;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,7 +12,6 @@ import java.util.List;
  */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class SseEndEvent {
     private String type = "end";
     private Long assistantMessageId;
@@ -28,6 +26,6 @@ public class SseEndEvent {
     public SseEndEvent(Long assistantMessageId, String fullContent, List<MessageSourceResponse> sources) {
         this.assistantMessageId = assistantMessageId;
         this.fullContent = fullContent;
-        this.sources = sources;
+        this.sources = sources == null ? new ArrayList<>() : sources;
     }
 }

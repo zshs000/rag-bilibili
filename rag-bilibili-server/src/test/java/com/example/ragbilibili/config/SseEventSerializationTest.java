@@ -36,6 +36,8 @@ class SseEventSerializationTest {
     void shouldSerializeEndEventWithAssistantMessageIdAndFullContent() throws Exception {
         MessageSourceResponse source = new MessageSourceResponse();
         source.setIndex(1);
+        source.setStartTimeMs(130_000L);
+        source.setEndTimeMs(156_000L);
         source.setJumpUrl("https://www.bilibili.com/video/BV1iH3763Ezm/?p=1&t=127.5");
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(
                 new SseEndEvent(22L, "完整回答[1]", List.of(source))));
@@ -44,7 +46,17 @@ class SseEventSerializationTest {
         assertEquals(22L, json.get("assistantMessageId").asLong());
         assertEquals("完整回答[1]", json.get("fullContent").asText());
         assertEquals(1, json.get("sources").get(0).get("index").asInt());
+        assertEquals(130_000L, json.get("sources").get(0).get("startTimeMs").asLong());
+        assertEquals(156_000L, json.get("sources").get(0).get("endTimeMs").asLong());
         assertEquals(source.getJumpUrl(), json.get("sources").get(0).get("jumpUrl").asText());
+    }
+
+    @Test
+    void shouldSerializeNullSourcesAsEmptyArray() throws Exception {
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(
+                new SseEndEvent(22L, "完整回答", null)));
+
+        assertEquals(0, json.get("sources").size());
     }
 
     @Test

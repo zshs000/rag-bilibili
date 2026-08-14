@@ -1,9 +1,9 @@
 <template>
-  <div v-if="sources.length" class="message-sources" aria-label="回答来源">
+  <div v-if="trustedSources.length" class="message-sources" aria-label="回答来源">
     <div class="source-heading">回答来源</div>
     <div class="source-list">
       <a
-        v-for="source in sources"
+        v-for="source in trustedSources"
         :key="source.index"
         class="source-card"
         :href="source.jumpUrl"
@@ -22,12 +22,19 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from "vue";
+import { isTrustedBilibiliJumpUrl } from "../utils/bilibili-url";
+
+const props = defineProps({
   sources: {
     type: Array,
     default: () => [],
   },
 });
+
+const trustedSources = computed(() =>
+  props.sources.filter((source) => isTrustedBilibiliJumpUrl(source?.jumpUrl))
+);
 
 function formatSourcePosition(source) {
   const start = formatTimestamp(source.startTimeMs);

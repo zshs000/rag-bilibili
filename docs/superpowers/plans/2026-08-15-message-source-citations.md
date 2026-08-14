@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Define the REST and SSE contract
+## Task 1: Define the REST and SSE contract
 
 **Files:**
 - Modify: `docs/API.md`
@@ -29,7 +29,7 @@ Run: `git diff --check -- docs/API.md`
 
 Expected: exit code 0.
 
-### Task 2: Add source snapshot persistence
+## Task 2: Add source snapshot persistence
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/resources/db/migration/V3__add_message_source.sql`
@@ -72,15 +72,15 @@ Run: `mvn -Dtest=MessageSourceMapperContractTest test`
 
 Expected: PASS.
 
-### Task 3: Resolve retrieved chunks and build safe citations
+## Task 3: Resolve retrieved chunks and build safe citations
 
 **Files:**
-- Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/service/impl/RetrievedSourceCandidate.java`
-- Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/service/impl/CitationService.java`
+- Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/service/RetrievedSourceCandidate.java`
+- Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/service/CitationService.java`
 - Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/util/BilibiliJumpUrlBuilder.java`
 - Modify: `rag-bilibili-server/src/main/java/com/example/ragbilibili/mapper/VectorMappingMapper.java`
 - Modify: `rag-bilibili-server/src/main/resources/mapper/VectorMappingMapper.xml`
-- Create: `rag-bilibili-server/src/test/java/com/example/ragbilibili/service/impl/CitationServiceTest.java`
+- Create: `rag-bilibili-server/src/test/java/com/example/ragbilibili/service/CitationServiceTest.java`
 - Create: `rag-bilibili-server/src/test/java/com/example/ragbilibili/util/BilibiliJumpUrlBuilderTest.java`
 
 - [ ] **Step 1: Write URL builder tests**
@@ -123,7 +123,7 @@ Run: `mvn -Dtest=CitationServiceTest,BilibiliJumpUrlBuilderTest test`
 
 Expected: PASS.
 
-### Task 4: Transactionally write assistant messages and sources
+## Task 4: Transactionally write assistant messages and sources
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/service/impl/AssistantMessageTxService.java`
@@ -154,7 +154,7 @@ Run: `mvn -Dtest=AssistantMessageTxServiceTest,ChatServiceImplTest,SseEventSeria
 
 Expected: PASS.
 
-### Task 5: Return historical sources and preserve deletion consistency
+## Task 5: Return historical sources and preserve deletion consistency
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/dto/response/MessageSourceResponse.java`
@@ -194,7 +194,7 @@ Run: `mvn -Dtest=MessageServiceImplTest,SessionServiceImplTest,VideoServiceImplT
 
 Expected: PASS.
 
-### Task 6: Render inline citations and source cards
+## Task 6: Render inline citations and source cards
 
 **Files:**
 - Modify: `rag-bilibili-front/src/components/MarkdownContent.vue`
@@ -224,7 +224,7 @@ Run: `npm run build`
 
 Expected: Vite build succeeds.
 
-### Task 7: Full verification and handoff
+## Task 7: Full verification and handoff
 
 **Files:**
 - Review all files changed on this branch.
