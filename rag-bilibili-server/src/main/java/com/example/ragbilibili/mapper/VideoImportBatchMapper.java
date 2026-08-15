@@ -19,4 +19,6 @@ public interface VideoImportBatchMapper {
     int refreshSummary(@Param("id") Long id);
 
     int clearCredentials(@Param("id") Long id);
+
+    int refreshRunningSummaries();
 }

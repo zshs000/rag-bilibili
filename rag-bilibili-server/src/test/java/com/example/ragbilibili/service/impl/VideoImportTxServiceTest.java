@@ -16,7 +16,10 @@ import org.springframework.ai.document.Document;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class VideoImportTxServiceTest {
@@ -47,5 +50,23 @@ class VideoImportTxServiceTest {
         assertEquals(1250L, chunk.getStartTimeMs());
         assertEquals(3500L, chunk.getEndTimeMs());
         assertEquals("ai-zh", chunk.getSubtitleLanguage());
+    }
+
+    @Test
+    void createImportingVideoShouldReuseFailedRecordForRetry() {
+        Video failed = new Video();
+        failed.setId(100L);
+        failed.setStatus("FAILED");
+        when(videoMapper.selectByUserIdAndBvid(1L, "BV1Test"))
+                .thenReturn(failed);
+        PreparedVideoImportData prepared = new PreparedVideoImportData(
+                "BV1Test", "新标题", "新简介", List.of(), List.of(), List.of());
+
+        Video result = service.createImportingVideo(prepared, 1L);
+
+        assertSame(failed, result);
+        assertEquals("IMPORTING", result.getStatus());
+        assertEquals("新标题", result.getTitle());
+        verify(videoMapper).update(any(Video.class));
     }
 }

@@ -69,6 +69,14 @@
 
     <update id="clearCredentials">
         UPDATE video_import_batch SET credentials_ciphertext = NULL, update_time = CURRENT_TIMESTAMP
-        WHERE id = #{id} AND status IN ('COMPLETED', 'PARTIAL_FAILED')
+        WHERE id = #{id} AND status = 'COMPLETED'
+    </update>
+
+    <update id="refreshRunningSummaries">
+        UPDATE video_import_batch b
+        SET queued_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'QUEUED'),
+            running_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'RUNNING'),
+            status = 'RUNNING', update_time = CURRENT_TIMESTAMP, finish_time = NULL
+        WHERE b.status = 'RUNNING'
     </update>
 </mapper>

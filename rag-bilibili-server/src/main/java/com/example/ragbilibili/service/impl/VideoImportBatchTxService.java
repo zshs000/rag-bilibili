@@ -77,6 +77,56 @@ public class VideoImportBatchTxService {
         return updated;
     }
 
+    @Transactional
+    public VideoImportItem claimNext() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            VideoImportItem candidate = itemMapper.selectNextQueued();
+            if (candidate == null) {
+                return null;
+            }
+            if (itemMapper.claim(candidate.getId(), LocalDateTime.now()) == 1) {
+                batchMapper.refreshSummary(candidate.getBatchId());
+                return itemMapper.selectById(candidate.getId());
+            }
+        }
+        return null;
+    }
+
+    public VideoImportBatch loadBatch(Long batchId) {
+        return batchMapper.selectById(batchId);
+    }
+
+    @Transactional
+    public void markSucceeded(Long itemId, Long videoId, Long batchId) {
+        itemMapper.markSucceeded(itemId, videoId, LocalDateTime.now());
+        refreshAndClearCompleted(batchId);
+    }
+
+    @Transactional
+    public void markFailed(Long itemId, String failReason, Long batchId) {
+        itemMapper.markFailed(itemId, failReason, LocalDateTime.now());
+        refreshAndClearCompleted(batchId);
+    }
+
+    @Transactional
+    public void recoverInterruptedItems() {
+        if (itemMapper.resetRunningToQueued() > 0) {
+            batchMapper.refreshRunningSummaries();
+        }
+    }
+
+    public boolean hasQueuedItems() {
+        return itemMapper.selectNextQueued() != null;
+    }
+
+    private void refreshAndClearCompleted(Long batchId) {
+        batchMapper.refreshSummary(batchId);
+        VideoImportBatch batch = batchMapper.selectById(batchId);
+        if (batch != null && VideoImportBatchStatus.COMPLETED.name().equals(batch.getStatus())) {
+            batchMapper.clearCredentials(batchId);
+        }
+    }
+
     private VideoImportItem baseItem(Long batchId, Long userId, String input, LocalDateTime now) {
         VideoImportItem item = new VideoImportItem();
         item.setBatchId(batchId);
