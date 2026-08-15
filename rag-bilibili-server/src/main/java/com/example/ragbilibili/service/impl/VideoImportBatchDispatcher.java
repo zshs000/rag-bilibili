@@ -91,9 +91,6 @@ public class VideoImportBatchDispatcher implements VideoImportBatchScheduler {
     private void workerFinished(AtomicInteger remainingWorkers) {
         if (remainingWorkers.decrementAndGet() == 0) {
             draining.set(false);
-            if (txService.hasQueuedItems()) {
-                dispatch();
-            }
         }
     }
 

@@ -169,6 +169,7 @@ $env:OPENAI_BASE_URL="https://your-openai-compatible-endpoint"
 $env:DASHSCOPE_API_KEY="your_dashscope_api_key"
 $env:DASHVECTOR_API_KEY="your_dashvector_api_key"
 $env:DASHVECTOR_ENDPOINT="your_dashvector_endpoint"
+$env:BATCH_IMPORT_CREDENTIAL_KEY="Base64 编码的 32 字节随机密钥"
 ```
 
 说明：
@@ -176,6 +177,7 @@ $env:DASHVECTOR_ENDPOINT="your_dashvector_endpoint"
 - `OPENAI_BASE_URL` 需要指向 OpenAI 兼容接口地址
 - 聊天模型名、Embedding 模型名、DashVector collection 名都可以在 [application.yml](./rag-bilibili-server/src/main/resources/application.yml) 中调整
 - DashVector collection 的向量维度需要与 Embedding 模型维度一致，当前配置为 `1024`
+- `BATCH_IMPORT_CREDENTIAL_KEY` 用于加密批量导入期间临时保存的 B站 Cookie，可使用 `openssl rand -base64 32` 生成
 
 ### 3. 启动后端
 

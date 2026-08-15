@@ -216,11 +216,15 @@ async function retryFailed() {
 function startPolling() {
   stopPolling();
   if (selectedBatch.value?.status !== "RUNNING") return;
-  pollTimer = window.setInterval(refreshSelected, POLL_INTERVAL);
+  pollTimer = window.setTimeout(async () => {
+    pollTimer = null;
+    await refreshSelected();
+    if (selectedBatch.value?.status === "RUNNING") startPolling();
+  }, POLL_INTERVAL);
 }
 
 function stopPolling() {
-  if (pollTimer) window.clearInterval(pollTimer);
+  if (pollTimer) window.clearTimeout(pollTimer);
   pollTimer = null;
 }
 

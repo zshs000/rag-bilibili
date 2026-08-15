@@ -81,6 +81,16 @@ class VideoImportBatchDispatcherTest {
         verify(batchImportExecutor, org.mockito.Mockito.times(2)).execute(any(Runnable.class));
     }
 
+    @Test
+    void rejectedExecutorDoesNotRecursivelyResubmit() {
+        doThrow(new org.springframework.core.task.TaskRejectedException("busy"))
+                .when(batchImportExecutor).execute(any(Runnable.class));
+
+        dispatcher.dispatch();
+
+        verify(batchImportExecutor).execute(any(Runnable.class));
+    }
+
     private VideoImportItem item() {
         VideoImportItem item = new VideoImportItem();
         item.setId(101L);
