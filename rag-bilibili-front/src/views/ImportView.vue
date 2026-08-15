@@ -1,11 +1,12 @@
 <template>
   <AppShell
     eyebrow="Video Import"
-    title="把单个 B 站视频导入到知识库"
-    subtitle="填写视频标识和必要凭证后，即可把视频内容整理成可检索、可提问的知识资料。"
+    title="把 B 站视频导入到知识库"
+    subtitle="支持单视频导入和多行批量任务，完成后即可检索并提问。"
   >
-
-    <div class="page-grid">
+    <el-tabs v-model="mode" class="import-tabs">
+      <el-tab-pane label="单视频导入" name="single">
+        <div class="page-grid">
       <section class="surface span-7 card-section">
         <div class="card-header">
           <div>
@@ -90,7 +91,12 @@
           </div>
         </div>
       </section>
-    </div>
+        </div>
+      </el-tab-pane>
+      <el-tab-pane label="批量导入" name="batch">
+        <BatchImportPanel />
+      </el-tab-pane>
+    </el-tabs>
   </AppShell>
 </template>
 
@@ -100,12 +106,14 @@ import { reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
 
 import AppShell from "../components/AppShell.vue";
+import BatchImportPanel from "../components/BatchImportPanel.vue";
 import StatusPill from "../components/StatusPill.vue";
 import { videosApi } from "../api/videos";
 import { formatDateTime } from "../utils/format";
 import { notifyError } from "../utils/error";
 
 const STORAGE_KEY = "rag-bilibili-credentials";
+const mode = ref("single");
 
 const inlineError = ref("");
 const submitting = ref(false);

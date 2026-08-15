@@ -73,6 +73,8 @@ register:
   enabled: true
 
 rag:
+  batch-import:
+    credential-key: ${BATCH_IMPORT_CREDENTIAL_KEY:}
   subtitle-chunking:
     target-tokens: 400
     min-tokens: 300

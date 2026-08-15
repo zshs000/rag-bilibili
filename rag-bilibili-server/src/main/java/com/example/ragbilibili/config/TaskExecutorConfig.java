@@ -3,6 +3,7 @@ package com.example.ragbilibili.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -11,6 +12,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * 异步任务执行器配置
  */
 @Configuration
+@EnableScheduling
 public class TaskExecutorConfig {
 
     @Bean(name = "taskExecutor")
@@ -38,6 +40,20 @@ public class TaskExecutorConfig {
         // 等待时间（秒）
         executor.setAwaitTerminationSeconds(60);
 
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "batchImportExecutor")
+    public TaskExecutor batchImportExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("batch-import-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
         return executor;
     }

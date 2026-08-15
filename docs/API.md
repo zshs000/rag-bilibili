@@ -25,6 +25,9 @@
 | 2003 | 视频导入失败 |
 | 2004 | 视频无字幕 |
 | 2005 | BV 号解析失败 |
+| 2006 | 导入批次不存在 |
+| 2007 | 批量导入数量超限 |
+| 2008 | 批量导入凭证加密配置无效 |
 | 3001 | 会话不存在 |
 | 3002 | 会话类型错误 |
 | 4001 | 向量删除失败 |
@@ -129,6 +132,59 @@ DELETE /api/videos/{id}
 ```
 
 需要登录。响应 data：`null`
+
+### 创建批量导入任务
+
+```http
+POST /api/video-import-batches
+```
+
+需要登录。`inputs` 接收 1～50 个非空的视频链接或 BV 号。批内重复、当前用户已导入或正在导入的视频会创建为 `SKIPPED` 明细，不会导致整批失败。Cookie 仅用于本批次后台导入，不会出现在响应中。
+
+请求体：
+
+```json
+{
+  "inputs": [
+    "BV1DCfsBKExV",
+    "https://www.bilibili.com/video/BV1iH3763Ezm"
+  ],
+  "sessdata": "xxx",
+  "biliJct": "xxx",
+  "buvid3": "xxx"
+}
+```
+
+响应 data：`VideoImportBatchResponse`。
+
+可能的业务错误：
+
+- `2007`：非空输入超过 50 个。
+- `2008`：服务端未正确配置批量导入凭证加密密钥。
+
+### 获取最近导入批次
+
+```http
+GET /api/video-import-batches
+```
+
+需要登录。响应 data：当前用户最近 20 个 `VideoImportBatchResponse[]`，按创建时间倒序返回；列表响应中的 `items` 为空数组。
+
+### 获取导入批次详情
+
+```http
+GET /api/video-import-batches/{id}
+```
+
+需要登录。响应 data：包含明细的 `VideoImportBatchResponse`。批次不存在或不属于当前用户时均返回 `2006`，不泄露其他用户数据。
+
+### 重试批次失败项
+
+```http
+POST /api/video-import-batches/{id}/retry-failed
+```
+
+需要登录。仅将该批次的 `FAILED` 明细重新置为 `QUEUED` 并唤醒后台处理，不复制成功或已跳过项。响应 data：更新后的 `VideoImportBatchResponse`。批次不存在或不属于当前用户时返回 `2006`。
 
 ---
 
@@ -284,6 +340,46 @@ data: {"type":"error","message":"错误信息"}
 ```
 
 `sessionType`：`SINGLE_VIDEO` / `ALL_VIDEOS`
+
+### VideoImportBatchResponse
+
+```json
+{
+  "id": 10,
+  "status": "RUNNING",
+  "totalCount": 1,
+  "queuedCount": 0,
+  "runningCount": 1,
+  "succeededCount": 0,
+  "skippedCount": 0,
+  "failedCount": 0,
+  "createTime": "2026-08-16 10:00:00",
+  "updateTime": "2026-08-16 10:00:02",
+  "finishTime": null,
+  "items": [
+    {
+      "id": 101,
+      "originalInput": "BV1DCfsBKExV",
+      "bvid": "BV1DCfsBKExV",
+      "status": "RUNNING",
+      "failReason": null,
+      "retryCount": 0,
+      "videoId": null,
+      "createTime": "2026-08-16 10:00:00",
+      "startTime": "2026-08-16 10:00:02",
+      "finishTime": null
+    }
+  ]
+}
+```
+
+批次 `status`：
+
+- `RUNNING`：仍有 `QUEUED` 或 `RUNNING` 明细。
+- `COMPLETED`：全部明细均为 `SUCCEEDED` 或 `SKIPPED`。
+- `PARTIAL_FAILED`：全部明细结束且至少一项为 `FAILED`。
+
+明细 `status`：`QUEUED` / `RUNNING` / `SUCCEEDED` / `SKIPPED` / `FAILED`。时间字段格式与其他 REST 响应一致，均为 `yyyy-MM-dd HH:mm:ss`。
 
 ### MessageResponse
 

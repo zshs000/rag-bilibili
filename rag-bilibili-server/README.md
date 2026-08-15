@@ -41,7 +41,12 @@ DASHSCOPE_API_KEY=your_dashscope_api_key
 # 阿里云 DashVector 向量数据库
 DASHVECTOR_API_KEY=your_dashvector_api_key
 DASHVECTOR_ENDPOINT=your_dashvector_endpoint
+
+# 批量导入 Cookie 临时密文的 AES-256 密钥（32 字节 Base64）
+BATCH_IMPORT_CREDENTIAL_KEY=replace_with_base64_32_byte_key
 ```
+
+可使用 `openssl rand -base64 32` 生成 `BATCH_IMPORT_CREDENTIAL_KEY`。未配置该变量时，单视频导入不受影响，批量导入会返回错误码 `2008`。
 
 ### 2. 启动服务
 

@@ -36,6 +36,15 @@ public class VideoImportTxService {
     public Video createImportingVideo(PreparedVideoImportData prepared, Long userId) {
         Video existingVideo = videoMapper.selectByUserIdAndBvid(userId, prepared.getBvid());
         if (existingVideo != null) {
+            if (VideoStatus.FAILED.getCode().equals(existingVideo.getStatus())) {
+                existingVideo.setTitle(prepared.getTitle());
+                existingVideo.setDescription(prepared.getDescription());
+                existingVideo.setStatus(VideoStatus.IMPORTING.getCode());
+                existingVideo.setFailReason(null);
+                existingVideo.setImportTime(LocalDateTime.now());
+                videoMapper.update(existingVideo);
+                return existingVideo;
+            }
             throw new BusinessException(ErrorCode.VIDEO_ALREADY_EXISTS);
         }
 
