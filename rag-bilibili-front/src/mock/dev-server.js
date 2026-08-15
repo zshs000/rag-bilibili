@@ -29,6 +29,7 @@ function defaultDatabase() {
   const createTime = nowString();
   return {
     nextVideoId: 4,
+    nextImportBatchId: 1,
     nextSessionId: 3,
     nextMessageId: 7,
     videos: [
@@ -63,6 +64,7 @@ function defaultDatabase() {
         failReason: null,
       },
     ],
+    importBatches: [],
     sessions: [
       {
         id: 1,
@@ -122,7 +124,10 @@ function readDatabase() {
   }
 
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    parsed.nextImportBatchId ||= 1;
+    parsed.importBatches ||= [];
+    return parsed;
   } catch {
     const seeded = defaultDatabase();
     writeDatabase(seeded);
@@ -138,6 +143,64 @@ function delay(ms = 220) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function refreshMockBatch(batch) {
+  const count = (status) => batch.items.filter((item) => item.status === status).length;
+  batch.totalCount = batch.items.length;
+  batch.queuedCount = count("QUEUED");
+  batch.runningCount = count("RUNNING");
+  batch.succeededCount = count("SUCCEEDED");
+  batch.skippedCount = count("SKIPPED");
+  batch.failedCount = count("FAILED");
+  batch.updateTime = nowString();
+  if (batch.queuedCount || batch.runningCount) {
+    batch.status = "RUNNING";
+    batch.finishTime = null;
+  } else {
+    batch.status = batch.failedCount ? "PARTIAL_FAILED" : "COMPLETED";
+    batch.finishTime = nowString();
+  }
+  return batch;
+}
+
+function advanceMockBatch(db, batch) {
+  const nextItems = batch.items.filter((item) => item.status === "QUEUED").slice(0, 2);
+  nextItems.forEach((item) => {
+    item.startTime = nowString();
+    if (!item.bvid) {
+      item.status = "FAILED";
+      item.failReason = "无法解析 BV 号";
+    } else {
+      item.status = "SUCCEEDED";
+      item.failReason = null;
+      let video = db.videos.find((candidate) => candidate.bvid === item.bvid);
+      if (!video) {
+        video = {
+          id: db.nextVideoId++,
+          bvid: item.bvid,
+          title: `开发模式视频 ${item.bvid}`,
+          description: "由批量导入开发模式生成。",
+          chunkCount: 32,
+          importTime: nowString(),
+          status: "SUCCESS",
+          failReason: null,
+        };
+        db.videos.unshift(video);
+      }
+      item.videoId = video.id;
+    }
+    item.finishTime = nowString();
+  });
+  return refreshMockBatch(batch);
+}
+
+function batchSummary(batch) {
+  return { ...batch, items: [] };
+}
+
+function batchItemId(batchId, index) {
+  return batchId * 1000 + index + 1;
 }
 
 function buildAssistantReply(session, prompt) {
@@ -190,6 +253,77 @@ export const devServer = {
     db.videos.unshift(video);
     writeDatabase(db);
     return video;
+  },
+
+  async createVideoImportBatch(payload) {
+    await delay();
+    const db = readDatabase();
+    const seen = new Set();
+    const createTime = nowString();
+    const batchId = db.nextImportBatchId++;
+    const batch = {
+      id: batchId,
+      status: "RUNNING",
+      createTime,
+      updateTime: createTime,
+      finishTime: null,
+      items: payload.inputs.map((input, index) => {
+        const bvid = extractBvid(input);
+        const duplicate = bvid && seen.has(bvid);
+        const existing = bvid && db.videos.some((video) => video.bvid === bvid);
+        if (bvid) seen.add(bvid);
+        const status = !bvid ? "FAILED" : duplicate || existing ? "SKIPPED" : "QUEUED";
+        return {
+          id: batchItemId(batchId, index),
+          originalInput: input,
+          bvid: bvid || null,
+          status,
+          failReason: !bvid ? "无法解析 BV 号" : duplicate ? "批次内重复" : existing ? "视频已导入" : null,
+          retryCount: 0,
+          videoId: null,
+          createTime,
+          startTime: null,
+          finishTime: status === "QUEUED" ? null : createTime,
+        };
+      }),
+    };
+    refreshMockBatch(batch);
+    db.importBatches.unshift(batch);
+    writeDatabase(db);
+    return JSON.parse(JSON.stringify(batch));
+  },
+
+  async listVideoImportBatches() {
+    await delay();
+    const db = readDatabase();
+    return db.importBatches.slice(0, 20).map(batchSummary);
+  },
+
+  async getVideoImportBatch(id) {
+    await delay();
+    const db = readDatabase();
+    const batch = db.importBatches.find((candidate) => candidate.id === Number(id));
+    if (!batch) throw createError(2006, "导入批次不存在。");
+    if (batch.status === "RUNNING") advanceMockBatch(db, batch);
+    writeDatabase(db);
+    return JSON.parse(JSON.stringify(batch));
+  },
+
+  async retryFailedVideoImports(id) {
+    await delay();
+    const db = readDatabase();
+    const batch = db.importBatches.find((candidate) => candidate.id === Number(id));
+    if (!batch) throw createError(2006, "导入批次不存在。");
+    batch.items.filter((item) => item.status === "FAILED").forEach((item) => {
+      item.status = "QUEUED";
+      item.failReason = null;
+      item.retryCount += 1;
+      item.startTime = null;
+      item.finishTime = null;
+    });
+    refreshMockBatch(batch);
+    writeDatabase(db);
+    return JSON.parse(JSON.stringify(batch));
   },
 
   async listVideos() {
