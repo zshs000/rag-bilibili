@@ -96,6 +96,9 @@
       <el-tab-pane label="批量导入" name="batch">
         <BatchImportPanel />
       </el-tab-pane>
+      <el-tab-pane label="从 B站选择" name="source">
+        <BilibiliSourceBrowser />
+      </el-tab-pane>
     </el-tabs>
   </AppShell>
 </template>
@@ -107,6 +110,7 @@ import { RouterLink } from "vue-router";
 
 import AppShell from "../components/AppShell.vue";
 import BatchImportPanel from "../components/BatchImportPanel.vue";
+import BilibiliSourceBrowser from "../components/BilibiliSourceBrowser.vue";
 import StatusPill from "../components/StatusPill.vue";
 import { videosApi } from "../api/videos";
 import { formatDateTime } from "../utils/format";

@@ -145,6 +145,30 @@ function delay(ms = 220) {
   });
 }
 
+function mockBilibiliVideoPage(sourceId, page = 1, pageSize = 20, total = 26, favorite = false) {
+  const start = (page - 1) * pageSize;
+  const count = Math.max(0, Math.min(pageSize, total - start));
+  const topics = [
+    "Spring Cloud 微服务实战", "RAG 检索与向量数据库", "Redis 分布式锁", "MySQL 索引优化",
+    "Java 并发编程", "Spring AI Alibaba 入门", "消息队列可靠性", "后端项目面试复盘",
+  ];
+  const items = Array.from({ length: count }, (_, index) => {
+    const position = start + index;
+    const unavailable = favorite && position === 3;
+    return {
+      bvid: `BV1MOCK${String(sourceId + position).padStart(6, "0")}`,
+      title: unavailable ? "已失效视频" : `${topics[position % topics.length]} · 第 ${position + 1} 期`,
+      coverUrl: `https://picsum.photos/seed/rag-bilibili-${sourceId}-${position}/480/270`,
+      durationSeconds: 180 + position * 73,
+      ownerMid: 100000 + (position % 5),
+      ownerName: ["后端研究所", "AI 工程实践", "Java 技术栈", "架构成长记", "开源课堂"][position % 5],
+      publishTime: 1754006400 - position * 86400,
+      unavailable,
+    };
+  });
+  return { page, pageSize, total, hasMore: page * pageSize < total, items };
+}
+
 function refreshMockBatch(batch) {
   const count = (status) => batch.items.filter((item) => item.status === status).length;
   batch.totalCount = batch.items.length;
@@ -226,6 +250,24 @@ function mockSource() {
 }
 
 export const devServer = {
+  async listBilibiliFavoriteFolders() {
+    await delay();
+    return [
+      { id: 1001, title: "默认收藏夹", mediaCount: 26, privateFolder: false },
+      { id: 1002, title: "后端与 AI", mediaCount: 8, privateFolder: true },
+    ];
+  },
+
+  async listBilibiliFavoriteVideos(folderId, payload) {
+    await delay();
+    return mockBilibiliVideoPage(Number(folderId), payload.page, payload.pageSize, 26, true);
+  },
+
+  async listBilibiliUpVideos(payload) {
+    await delay();
+    return mockBilibiliVideoPage(2001, payload.page, payload.pageSize, 37, false);
+  },
+
   async importVideo(payload) {
     await delay();
     const db = readDatabase();

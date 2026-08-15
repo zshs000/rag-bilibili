@@ -26,6 +26,9 @@ public enum ErrorCode {
     VIDEO_IMPORT_BATCH_NOT_FOUND(2006, "导入批次不存在"),
     VIDEO_IMPORT_BATCH_LIMIT_EXCEEDED(2007, "批量导入数量超限"),
     VIDEO_IMPORT_CREDENTIAL_CONFIG_ERROR(2008, "批量导入凭证加密配置无效"),
+    BILIBILI_SOURCE_REQUEST_FAILED(2009, "B站来源请求失败"),
+    BILIBILI_CREDENTIAL_INVALID(2010, "B站登录凭证无效"),
+    BILIBILI_RISK_CONTROLLED(2011, "B站请求被风控限制，请稍后重试或使用登录模式"),
 
     // 会话相关
     SESSION_NOT_FOUND(3001, "会话不存在"),
