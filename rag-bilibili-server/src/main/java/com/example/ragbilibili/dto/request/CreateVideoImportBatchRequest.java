@@ -2,11 +2,13 @@ package com.example.ragbilibili.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 public class CreateVideoImportBatchRequest {
     @NotEmpty(message = "至少需要一个视频")
     private List<String> inputs;

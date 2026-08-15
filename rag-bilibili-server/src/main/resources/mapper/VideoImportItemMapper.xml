@@ -28,6 +28,14 @@
                 #{retryCount}, #{videoId}, #{createTime}, #{startTime}, #{finishTime})
     </insert>
 
+    <insert id="insertQueuedIfAbsent" useGeneratedKeys="true" keyProperty="id">
+        INSERT IGNORE INTO video_import_item
+        (batch_id, user_id, original_input, bvid, status, fail_reason, retry_count,
+         video_id, create_time, start_time, finish_time)
+        VALUES (#{batchId}, #{userId}, #{originalInput}, #{bvid}, 'QUEUED', NULL,
+                #{retryCount}, NULL, #{createTime}, NULL, NULL)
+    </insert>
+
     <select id="selectById" resultMap="BaseResultMap">
         SELECT <include refid="columns"/> FROM video_import_item WHERE id = #{id}
     </select>
@@ -66,10 +74,17 @@
     </update>
 
     <update id="resetFailedByBatchId">
-        UPDATE video_import_item
-        SET status = 'QUEUED', start_time = NULL, finish_time = NULL, fail_reason = NULL,
-            video_id = NULL, retry_count = retry_count + 1
-        WHERE batch_id = #{batchId} AND status = 'FAILED'
+        UPDATE video_import_item failed_item
+        LEFT JOIN video_import_item active_item
+          ON active_item.user_id = failed_item.user_id
+         AND active_item.bvid = failed_item.bvid
+         AND active_item.status IN ('QUEUED', 'RUNNING')
+         AND active_item.id != failed_item.id
+        SET failed_item.status = 'QUEUED', failed_item.start_time = NULL,
+            failed_item.finish_time = NULL, failed_item.fail_reason = NULL,
+            failed_item.video_id = NULL, failed_item.retry_count = failed_item.retry_count + 1
+        WHERE failed_item.batch_id = #{batchId} AND failed_item.status = 'FAILED'
+          AND active_item.id IS NULL
     </update>
 
     <update id="resetRunningToQueued">

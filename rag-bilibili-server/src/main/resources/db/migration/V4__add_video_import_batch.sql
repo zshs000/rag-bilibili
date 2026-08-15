@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS `video_import_batch` (
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `finish_time` DATETIME NULL,
+    `active_bvid` VARCHAR(50) GENERATED ALWAYS AS
+        (CASE WHEN `status` IN ('QUEUED', 'RUNNING') THEN `bvid` ELSE NULL END) STORED,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_item_user_active_bvid` (`user_id`, `active_bvid`),
     KEY `idx_batch_user_created` (`user_id`, `create_time`),
     KEY `idx_batch_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频批量导入批次';

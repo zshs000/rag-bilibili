@@ -11,6 +11,8 @@ import java.util.List;
 public interface VideoImportItemMapper {
     int insert(VideoImportItem item);
 
+    int insertQueuedIfAbsent(VideoImportItem item);
+
     VideoImportItem selectById(@Param("id") Long id);
 
     List<VideoImportItem> selectByBatchId(@Param("batchId") Long batchId);

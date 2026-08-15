@@ -43,7 +43,6 @@ public class VideoImportBatchTxService {
 
         Set<String> seenBvids = new HashSet<>();
         boolean hasQueuedItem = false;
-        boolean hasFailedItem = false;
         for (String input : inputs) {
             VideoImportItem item = baseItem(batch.getId(), userId, input, now);
             try {
@@ -57,19 +56,23 @@ public class VideoImportBatchTxService {
                     skip(item, "视频正在导入");
                 } else {
                     item.setStatus(VideoImportItemStatus.QUEUED.name());
-                    hasQueuedItem = true;
+                    if (itemMapper.insertQueuedIfAbsent(item) == 1) {
+                        hasQueuedItem = true;
+                        continue;
+                    }
+                    item.setId(null);
+                    skip(item, "视频正在导入");
                 }
             } catch (BusinessException e) {
                 item.setStatus(VideoImportItemStatus.FAILED.name());
                 item.setFailReason("无法解析 BV 号");
                 item.setFinishTime(now);
-                hasFailedItem = true;
             }
             itemMapper.insert(item);
         }
 
         batchMapper.refreshSummary(batch.getId());
-        if (!hasQueuedItem && !hasFailedItem) {
+        if (!hasQueuedItem) {
             batchMapper.clearCredentials(batch.getId());
         }
         return batch.getId();

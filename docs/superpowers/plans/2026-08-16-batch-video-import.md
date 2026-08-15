@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: 固化 HTTP 契约
+## Task 1: 固化 HTTP 契约
 
 **Files:**
 - Modify: `docs/API.md`
@@ -20,7 +20,7 @@
 - [ ] 运行 `git diff --check -- docs/API.md`，预期无空白错误。
 - [ ] 提交 `docs(api): 定义批量视频导入接口`。
 
-### Task 2: 建立批次持久化模型
+## Task 2: 建立批次持久化模型
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/resources/db/migration/V4__add_video_import_batch.sql`
@@ -40,7 +40,7 @@
 - [ ] 再次运行相同测试，预期通过。
 - [ ] 提交 `feat(import): 持久化批量导入任务`。
 
-### Task 3: 加密批次凭证
+## Task 3: 加密批次凭证
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/config/BatchImportProperties.java`
@@ -55,7 +55,7 @@
 - [ ] 运行相同测试，预期通过。
 - [ ] 提交 `feat(import): 加密保存批量导入凭证`。
 
-### Task 4: 实现批次应用服务与 API
+## Task 4: 实现批次应用服务与 API
 
 **Files:**
 - Create: `rag-bilibili-server/src/main/java/com/example/ragbilibili/dto/request/CreateVideoImportBatchRequest.java`
@@ -76,7 +76,7 @@
 - [ ] 运行两个测试类，预期通过。
 - [ ] 提交 `feat(import): 提供批量导入任务接口`。
 
-### Task 5: 实现并发二的可恢复调度
+## Task 5: 实现并发二的可恢复调度
 
 **Files:**
 - Modify: `rag-bilibili-server/src/main/java/com/example/ragbilibili/config/TaskExecutorConfig.java`
@@ -95,7 +95,7 @@
 - [ ] 运行相关测试，预期通过。
 - [ ] 提交 `feat(import): 异步调度批量视频导入`。
 
-### Task 6: 实现前端批量导入体验
+## Task 6: 实现前端批量导入体验
 
 **Files:**
 - Create: `rag-bilibili-front/src/api/video-import-batches.js`
@@ -110,7 +110,7 @@
 - [ ] 运行 `npm run build`，预期构建成功。
 - [ ] 提交 `feat(frontend): 支持多行批量导入与进度查看`。
 
-### Task 7: 完整验证与交付
+## Task 7: 完整验证与交付
 
 - [ ] 运行 `mvn test`，预期所有后端测试通过。
 - [ ] 运行 `npm run build`，预期前端生产构建通过。

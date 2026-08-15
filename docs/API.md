@@ -135,7 +135,7 @@ DELETE /api/videos/{id}
 
 ### 创建批量导入任务
 
-```
+```http
 POST /api/video-import-batches
 ```
 
@@ -164,7 +164,7 @@ POST /api/video-import-batches
 
 ### 获取最近导入批次
 
-```
+```http
 GET /api/video-import-batches
 ```
 
@@ -172,7 +172,7 @@ GET /api/video-import-batches
 
 ### 获取导入批次详情
 
-```
+```http
 GET /api/video-import-batches/{id}
 ```
 
@@ -180,7 +180,7 @@ GET /api/video-import-batches/{id}
 
 ### 重试批次失败项
 
-```
+```http
 POST /api/video-import-batches/{id}/retry-failed
 ```
 
@@ -347,11 +347,11 @@ data: {"type":"error","message":"错误信息"}
 {
   "id": 10,
   "status": "RUNNING",
-  "totalCount": 3,
-  "queuedCount": 1,
+  "totalCount": 1,
+  "queuedCount": 0,
   "runningCount": 1,
   "succeededCount": 0,
-  "skippedCount": 1,
+  "skippedCount": 0,
   "failedCount": 0,
   "createTime": "2026-08-16 10:00:00",
   "updateTime": "2026-08-16 10:00:02",

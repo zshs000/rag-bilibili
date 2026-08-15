@@ -126,6 +126,7 @@ const loadingHistory = ref(false);
 const history = ref([]);
 const selectedBatch = ref(null);
 let pollTimer = null;
+let pollGeneration = 0;
 
 const inputs = computed(() => form.inputText.split(/\r?\n/).map((value) => value.trim()).filter(Boolean));
 const inputCount = computed(() => inputs.value.length);
@@ -178,25 +179,34 @@ async function loadHistory() {
 
 async function selectBatch(id) {
   stopPolling();
+  const generation = pollGeneration;
   try {
-    selectedBatch.value = await videoImportBatchesApi.detail(id);
+    const batch = await videoImportBatchesApi.detail(id);
+    if (generation !== pollGeneration) return;
+    selectedBatch.value = batch;
     if (selectedBatch.value.status === "RUNNING") startPolling();
   } catch (error) {
     notifyError(error);
   }
 }
 
-async function refreshSelected() {
-  if (!selectedBatch.value) return;
+async function refreshSelected(batchId = selectedBatch.value?.id, generation = pollGeneration) {
+  if (!batchId) return false;
   try {
-    selectedBatch.value = await videoImportBatchesApi.detail(selectedBatch.value.id);
+    const batch = await videoImportBatchesApi.detail(batchId);
+    if (generation !== pollGeneration || selectedBatch.value?.id !== batchId) return false;
+    selectedBatch.value = batch;
     if (selectedBatch.value.status !== "RUNNING") {
       stopPolling();
       await loadHistory();
     }
+    return true;
   } catch (error) {
-    stopPolling();
-    notifyError(error);
+    if (generation === pollGeneration) {
+      stopPolling();
+      notifyError(error);
+    }
+    return false;
   }
 }
 
@@ -216,14 +226,23 @@ async function retryFailed() {
 function startPolling() {
   stopPolling();
   if (selectedBatch.value?.status !== "RUNNING") return;
+  const batchId = selectedBatch.value.id;
+  const generation = pollGeneration;
+  schedulePoll(batchId, generation);
+}
+
+function schedulePoll(batchId, generation) {
   pollTimer = window.setTimeout(async () => {
     pollTimer = null;
-    await refreshSelected();
-    if (selectedBatch.value?.status === "RUNNING") startPolling();
+    const refreshed = await refreshSelected(batchId, generation);
+    if (refreshed && generation === pollGeneration && selectedBatch.value?.status === "RUNNING") {
+      schedulePoll(batchId, generation);
+    }
   }, POLL_INTERVAL);
 }
 
 function stopPolling() {
+  pollGeneration += 1;
   if (pollTimer) window.clearTimeout(pollTimer);
   pollTimer = null;
 }
