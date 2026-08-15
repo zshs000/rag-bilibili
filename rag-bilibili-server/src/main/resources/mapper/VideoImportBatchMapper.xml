@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.VideoImportBatchMapper">
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.VideoImportBatch">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="status" property="status"/>
+        <result column="total_count" property="totalCount"/>
+        <result column="queued_count" property="queuedCount"/>
+        <result column="running_count" property="runningCount"/>
+        <result column="succeeded_count" property="succeededCount"/>
+        <result column="skipped_count" property="skippedCount"/>
+        <result column="failed_count" property="failedCount"/>
+        <result column="credentials_ciphertext" property="credentialsCiphertext"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="finish_time" property="finishTime"/>
+    </resultMap>
+
+    <sql id="columns">id, user_id, status, total_count, queued_count, running_count,
+        succeeded_count, skipped_count, failed_count, credentials_ciphertext,
+        create_time, update_time, finish_time</sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_import_batch
+        (user_id, status, total_count, queued_count, running_count, succeeded_count,
+         skipped_count, failed_count, credentials_ciphertext, create_time, update_time, finish_time)
+        VALUES (#{userId}, #{status}, #{totalCount}, #{queuedCount}, #{runningCount},
+                #{succeededCount}, #{skippedCount}, #{failedCount}, #{credentialsCiphertext},
+                #{createTime}, #{updateTime}, #{finishTime})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_batch WHERE id = #{id}
+    </select>
+
+    <select id="selectByIdAndUserId" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_batch
+        WHERE id = #{id} AND user_id = #{userId}
+    </select>
+
+    <select id="selectRecentByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_batch
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC, id DESC
+        LIMIT 20
+    </select>
+
+    <update id="refreshSummary">
+        UPDATE video_import_batch b
+        SET queued_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'QUEUED'),
+            running_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'RUNNING'),
+            succeeded_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'SUCCEEDED'),
+            skipped_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'SKIPPED'),
+            failed_count = (SELECT COUNT(*) FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'FAILED'),
+            status = CASE
+                WHEN EXISTS (SELECT 1 FROM video_import_item i WHERE i.batch_id = b.id AND i.status IN ('QUEUED', 'RUNNING')) THEN 'RUNNING'
+                WHEN EXISTS (SELECT 1 FROM video_import_item i WHERE i.batch_id = b.id AND i.status = 'FAILED') THEN 'PARTIAL_FAILED'
+                ELSE 'COMPLETED'
+            END,
+            finish_time = CASE
+                WHEN EXISTS (SELECT 1 FROM video_import_item i WHERE i.batch_id = b.id AND i.status IN ('QUEUED', 'RUNNING')) THEN NULL
+                ELSE CURRENT_TIMESTAMP
+            END,
+            update_time = CURRENT_TIMESTAMP
+        WHERE b.id = #{id}
+    </update>
+
+    <update id="clearCredentials">
+        UPDATE video_import_batch SET credentials_ciphertext = NULL, update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND status IN ('COMPLETED', 'PARTIAL_FAILED')
+    </update>
+</mapper>

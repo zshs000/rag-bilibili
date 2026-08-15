@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.ragbilibili.mapper.VideoImportItemMapper">
+    <resultMap id="BaseResultMap" type="com.example.ragbilibili.entity.VideoImportItem">
+        <id column="id" property="id"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="user_id" property="userId"/>
+        <result column="original_input" property="originalInput"/>
+        <result column="bvid" property="bvid"/>
+        <result column="status" property="status"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="retry_count" property="retryCount"/>
+        <result column="video_id" property="videoId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="start_time" property="startTime"/>
+        <result column="finish_time" property="finishTime"/>
+    </resultMap>
+
+    <sql id="columns">id, batch_id, user_id, original_input, bvid, status, fail_reason,
+        retry_count, video_id, create_time, start_time, finish_time</sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_import_item
+        (batch_id, user_id, original_input, bvid, status, fail_reason, retry_count,
+         video_id, create_time, start_time, finish_time)
+        VALUES (#{batchId}, #{userId}, #{originalInput}, #{bvid}, #{status}, #{failReason},
+                #{retryCount}, #{videoId}, #{createTime}, #{startTime}, #{finishTime})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_item WHERE id = #{id}
+    </select>
+
+    <select id="selectByBatchId" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_item
+        WHERE batch_id = #{batchId} ORDER BY id
+    </select>
+
+    <select id="selectNextQueued" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_item
+        WHERE status = 'QUEUED' ORDER BY id LIMIT 1
+    </select>
+
+    <update id="claim">
+        UPDATE video_import_item SET status = 'RUNNING', start_time = #{startTime}, finish_time = NULL
+        WHERE id = #{id} AND status = 'QUEUED'
+    </update>
+
+    <select id="selectActiveByUserIdAndBvid" resultMap="BaseResultMap">
+        SELECT <include refid="columns"/> FROM video_import_item
+        WHERE user_id = #{userId} AND bvid = #{bvid} AND status IN ('QUEUED', 'RUNNING')
+        ORDER BY id LIMIT 1
+    </select>
+
+    <update id="markSucceeded">
+        UPDATE video_import_item
+        SET status = 'SUCCEEDED', video_id = #{videoId}, fail_reason = NULL, finish_time = #{finishTime}
+        WHERE id = #{id} AND status = 'RUNNING'
+    </update>
+
+    <update id="markFailed">
+        UPDATE video_import_item
+        SET status = 'FAILED', fail_reason = #{failReason}, finish_time = #{finishTime}
+        WHERE id = #{id} AND status = 'RUNNING'
+    </update>
+
+    <update id="resetFailedByBatchId">
+        UPDATE video_import_item
+        SET status = 'QUEUED', start_time = NULL, finish_time = NULL, fail_reason = NULL,
+            video_id = NULL, retry_count = retry_count + 1
+        WHERE batch_id = #{batchId} AND status = 'FAILED'
+    </update>
+
+    <update id="resetRunningToQueued">
+        UPDATE video_import_item
+        SET status = 'QUEUED', start_time = NULL
+        WHERE status = 'RUNNING'
+    </update>
+</mapper>
