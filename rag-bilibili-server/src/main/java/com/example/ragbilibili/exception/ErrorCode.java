@@ -23,6 +23,9 @@ public enum ErrorCode {
     VIDEO_IMPORT_FAILED(2003, "视频导入失败"),
     VIDEO_NO_SUBTITLE(2004, "视频无字幕"),
     BVID_PARSE_ERROR(2005, "BV号解析失败"),
+    VIDEO_IMPORT_BATCH_NOT_FOUND(2006, "导入批次不存在"),
+    VIDEO_IMPORT_BATCH_LIMIT_EXCEEDED(2007, "批量导入数量超限"),
+    VIDEO_IMPORT_CREDENTIAL_CONFIG_ERROR(2008, "批量导入凭证加密配置无效"),
 
     // 会话相关
     SESSION_NOT_FOUND(3001, "会话不存在"),
