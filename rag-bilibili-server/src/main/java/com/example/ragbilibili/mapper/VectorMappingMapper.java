@@ -1,6 +1,7 @@
 package com.example.ragbilibili.mapper;
 
 import com.example.ragbilibili.entity.VectorMapping;
+import com.example.ragbilibili.entity.RetrievedChunkSource;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -25,4 +26,8 @@ public interface VectorMappingMapper {
      * 根据视频ID删除映射
      */
     int deleteByVideoId(@Param("videoId") Long videoId);
+
+    List<RetrievedChunkSource> selectRetrievedSourcesByVectorIds(
+            @Param("userId") Long userId,
+            @Param("vectorIds") List<String> vectorIds);
 }

@@ -90,8 +90,9 @@ function defaultDatabase() {
         {
           id: 2,
           role: "ASSISTANT",
-          content: "它主要讲了如何用 Spring AI Alibaba 读取 B 站字幕、切分文本并写入向量库，再围绕这些内容构建问答能力。",
+          content: "它主要讲了如何用 Spring AI Alibaba 读取 B 站字幕、切分文本并写入向量库，再围绕这些内容构建问答能力。[1]",
           createTime,
+          sources: [mockSource()],
         },
       ],
       2: [
@@ -145,7 +146,20 @@ function buildAssistantReply(session, prompt) {
       ? "当前会话限定在单视频范围内，系统会按照 user_id 和 bvid 过滤相关字幕分片，再结合上下文组织回答。"
       : "当前会话限定在全部视频范围内，系统会按 user_id 检索当前用户导入的全部视频内容，再汇总生成答案。";
 
-  return `${baseReply} 你刚刚的问题是“${prompt}”。在开发模式下，这段回复来自前端本地 mock SSE 流。`;
+  return `${baseReply} [1] 你刚刚的问题是“${prompt}”。在开发模式下，这段回复来自前端本地 mock SSE 流。`;
+}
+
+function mockSource() {
+  return {
+    index: 1,
+    bvid: "BV1iH3763Ezm",
+    videoTitle: "开发模式字幕来源",
+    pageNumber: 1,
+    startTimeMs: 130000,
+    endTimeMs: 156000,
+    snippet: "这是用于验证回答来源卡片和时间跳转的字幕片段。",
+    jumpUrl: "https://www.bilibili.com/video/BV1iH3763Ezm/?p=1&t=127.5",
+  };
 }
 
 export const devServer = {
@@ -342,6 +356,7 @@ export const devServer = {
       role: "ASSISTANT",
       content: built,
       createTime: nowString(),
+      sources: [mockSource()],
     };
     latestDb.messages[session.id] = [...(latestDb.messages[session.id] || []), assistantMessage];
     writeDatabase(latestDb);
@@ -352,6 +367,7 @@ export const devServer = {
         userMessageId: userMessage.id,
         assistantMessageId: assistantMessage.id,
         fullContent: built,
+        sources: assistantMessage.sources,
       });
     }
   },

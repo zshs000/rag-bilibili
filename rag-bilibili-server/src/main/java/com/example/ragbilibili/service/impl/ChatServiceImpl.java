@@ -6,6 +6,7 @@ import com.example.ragbilibili.dto.sse.SseEndEvent;
 import com.example.ragbilibili.dto.sse.SseErrorEvent;
 import com.example.ragbilibili.dto.sse.SseStartEvent;
 import com.example.ragbilibili.entity.Message;
+import com.example.ragbilibili.entity.MessageSource;
 import com.example.ragbilibili.entity.Session;
 import com.example.ragbilibili.entity.Video;
 import com.example.ragbilibili.enums.MessageRole;
@@ -16,6 +17,9 @@ import com.example.ragbilibili.mapper.MessageMapper;
 import com.example.ragbilibili.mapper.SessionMapper;
 import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.service.ChatService;
+import com.example.ragbilibili.service.CitationService;
+import com.example.ragbilibili.service.RetrievedSourceCandidate;
+import com.example.ragbilibili.service.RetrievedSourceResolution;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +65,12 @@ public class ChatServiceImpl implements ChatService {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private CitationService citationService;
+
+    @Autowired
+    private AssistantMessageTxService assistantMessageTxService;
+
+    @Autowired
     @Qualifier("taskExecutor")
     private TaskExecutor taskExecutor;
 
@@ -99,8 +109,11 @@ public class ChatServiceImpl implements ChatService {
                 // 6. RAG 检索
                 List<Document> relevantDocs = retrieveRelevantDocuments(session, content, userId);
 
+                RetrievedSourceResolution sourceResolution = citationService.resolve(relevantDocs, userId);
+                List<RetrievedSourceCandidate> sourceCandidates = sourceResolution.candidates();
+
                 // 7. 构建上下文
-                String context = buildContext(relevantDocs);
+                String context = citationService.buildContext(relevantDocs, sourceResolution);
 
                 // 8. 获取历史消息（排除刚插入的当前用户消息）
                 List<Message> historyMessages = messageMapper.selectBySessionId(sessionId);
@@ -154,18 +167,17 @@ public class ChatServiceImpl implements ChatService {
                         },
                         () -> {
                             try {
-                                // 13. 保存助手消息
-                                Message assistantMessage = new Message();
-                                assistantMessage.setSessionId(sessionId);
-                                assistantMessage.setRole(MessageRole.ASSISTANT.getCode());
-                                assistantMessage.setContent(fullResponse.toString());
-                                assistantMessage.setCreateTime(LocalDateTime.now());
-                                messageMapper.insert(assistantMessage);
+                                // 13. 保存助手消息及实际引用的来源快照
+                                List<MessageSource> citedSources = citationService.extractCitedSources(
+                                        fullResponse.toString(), sourceCandidates);
+                                Message assistantMessage = assistantMessageTxService.save(
+                                        sessionId, userId, fullResponse.toString(), citedSources);
 
                                 // 14. 发送end事件
                                 SseEndEvent endEvent = new SseEndEvent(
                                         assistantMessage.getId(),
-                                        fullResponse.toString());
+                                        fullResponse.toString(),
+                                        citationService.toResponses(citedSources));
                                 emitter.send(SseEmitter.event()
                                         .name("end")
                                         .data(objectMapper.writeValueAsString(endEvent)));
@@ -285,7 +297,8 @@ public class ChatServiceImpl implements ChatService {
                 "1. 仅基于提供的视频内容回答问题\n" +
                 "2. 如果视频内容中没有相关信息，请明确告知用户\n" +
                 "3. 回答要准确、简洁、有条理\n" +
-                "4. 可以引用具体的片段内容来支持你的回答\n\n" +
+                "4. 每个有来源支持的关键结论必须在句末标注对应来源编号，例如 [1] 或 [1][2]\n" +
+                "5. 只能使用上下文中存在的来源编号，不要编造编号；没有依据时不要添加引用\n\n" +
                 "%s",
                 context
         );

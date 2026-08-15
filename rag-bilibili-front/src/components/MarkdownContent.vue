@@ -6,11 +6,16 @@
 import { computed } from "vue";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { isTrustedBilibiliJumpUrl } from "../utils/bilibili-url";
 
 const props = defineProps({
   content: {
     type: String,
     default: "",
+  },
+  sources: {
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -25,9 +30,14 @@ const renderedHtml = computed(() => {
     return "";
   }
   try {
+    const sourceByIndex = new Map(
+      props.sources
+        .filter((source) => source?.index && isTrustedBilibiliJumpUrl(source.jumpUrl))
+        .map((source) => [String(source.index), source])
+    );
     const rawHtml = marked.parse(props.content);
     // 使用DOMPurify净化HTML，防止XSS攻击
-    return DOMPurify.sanitize(rawHtml, {
+    const sanitized = DOMPurify.sanitize(rawHtml, {
       ALLOWED_TAGS: [
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'p', 'br', 'hr',
@@ -36,14 +46,61 @@ const renderedHtml = computed(() => {
         'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
         'img', 'span', 'div'
       ],
-      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'],
       ALLOW_DATA_ATTR: false,
     });
+    const container = document.createElement("div");
+    container.innerHTML = sanitized;
+    linkCitationTextNodes(container, sourceByIndex);
+    container.querySelectorAll("a").forEach((anchor) => {
+      if (anchor.classList.contains("source-citation-link")) {
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+      }
+    });
+    return container.innerHTML;
   } catch (error) {
     console.error("Markdown解析失败:", error);
     return DOMPurify.sanitize(props.content);
   }
 });
+
+function linkCitationTextNodes(container, sourceByIndex) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!node.parentElement?.closest("a, code, pre")) {
+      textNodes.push(node);
+    }
+  }
+
+  textNodes.forEach((textNode) => {
+    const text = textNode.nodeValue || "";
+    const pattern = /\[(\d+)]/g;
+    let cursor = 0;
+    let matched;
+    const fragment = document.createDocumentFragment();
+    while ((matched = pattern.exec(text)) !== null) {
+      const source = sourceByIndex.get(matched[1]);
+      if (!source) {
+        continue;
+      }
+      fragment.append(document.createTextNode(text.slice(cursor, matched.index)));
+      const anchor = document.createElement("a");
+      anchor.href = source.jumpUrl;
+      anchor.title = "跳转到视频来源";
+      anchor.className = "source-citation-link";
+      anchor.textContent = matched[0];
+      fragment.append(anchor);
+      cursor = matched.index + matched[0].length;
+    }
+    if (cursor > 0) {
+      fragment.append(document.createTextNode(text.slice(cursor)));
+      textNode.replaceWith(fragment);
+    }
+  });
+}
 </script>
 
 <style scoped>
@@ -131,6 +188,11 @@ const renderedHtml = computed(() => {
 
 .markdown-content :deep(a:hover) {
   text-decoration: underline;
+}
+
+.markdown-content :deep(.source-citation-link) {
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .markdown-content :deep(table) {
