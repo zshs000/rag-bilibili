@@ -63,6 +63,40 @@ class BilibiliApiClientTest {
         assertEquals(2011, risk.getCode());
     }
 
+    @Test
+    void mapsHttp412ToRiskControlError() {
+        BilibiliApiClient client = new BilibiliApiClient((url, cookie) -> {
+            throw new BilibiliApiClient.HttpStatusException(412);
+        }, () -> 1L);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> client.getUpVideos(1L, 1, 20, null));
+
+        assertEquals(2011, error.getCode());
+    }
+
+    @Test
+    void treatsMalformedUpVideoDurationAsUnknown() {
+        BilibiliApiClient client = new BilibiliApiClient((url, cookie) -> {
+            if (url.contains("/x/web-interface/nav")) {
+                return """
+                        {"code":0,"data":{"wbi_img":{
+                          "img_url":"https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png",
+                          "sub_url":"https://i0.hdslb.com/bfs/wbi/4932caff0ff746eab6f01bf08b70ac45.png"}}}
+                        """;
+            }
+            return """
+                    {"code":0,"data":{"page":{"count":1},"list":{"vlist":[
+                      {"bvid":"BV1BAD","length":"--"}
+                    ]}}}
+                    """;
+        }, () -> 1L);
+
+        BilibiliSourceVideoPage page = client.getUpVideos(1L, 1, 20, null);
+
+        assertEquals(0, page.items().get(0).durationSeconds());
+    }
+
     private static final class FakeTransport implements BilibiliApiClient.HttpTransport {
         private final List<String> urls = new ArrayList<>();
         private final List<String> cookies = new ArrayList<>();

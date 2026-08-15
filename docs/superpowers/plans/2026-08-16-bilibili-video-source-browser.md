@@ -10,25 +10,25 @@
 
 ---
 
-### Task 1: 定义接口契约
+## Task 1: 定义接口契约
 
 - [x] 更新 `docs/API.md`，定义收藏夹目录、收藏夹视频和 UP 视频三个查询接口。
 - [x] 明确凭证、分页、错误码和响应字段。
 
-### Task 2: 实现后端来源查询
+## Task 2: 实现后端来源查询
 
 - [x] 先新增 WBI 签名与 UID 解析失败测试并运行确认失败。
 - [x] 实现签名、解析和 B站 HTTP 客户端，使测试通过。
 - [x] 先新增 Service/Controller 映射与校验测试并运行确认失败。
 - [x] 实现 DTO、Service、Controller 与错误码，使测试通过。
 
-### Task 3: 实现前端浏览与选择
+## Task 3: 实现前端浏览与选择
 
 - [x] 新增 `src/api/bilibili-sources.js` 和开发 Mock。
 - [x] 新增 `BilibiliSourceBrowser.vue`，实现来源切换、分页、列表、逐项选择和当前页全选。
 - [x] 接入 `ImportView.vue` 的第三个 Tab。
 
-### Task 4: 验证和交付
+## Task 4: 验证和交付
 
 - [ ] 运行后端相关测试与完整 `mvn test`。
 - [ ] 运行前端 `npm run build`。

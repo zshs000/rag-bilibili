@@ -130,6 +130,12 @@ public class BilibiliApiClient {
         catch (BusinessException ex) {
             throw ex;
         }
+        catch (HttpStatusException ex) {
+            if (ex.statusCode() == 412) {
+                throw new BusinessException(ErrorCode.BILIBILI_RISK_CONTROLLED);
+            }
+            throw new BusinessException(ErrorCode.BILIBILI_SOURCE_REQUEST_FAILED);
+        }
         catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -157,10 +163,18 @@ public class BilibiliApiClient {
     }
 
     private static long parseDuration(String value) {
-        String[] parts = value.split(":");
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        String[] parts = value.trim().split(":");
         long result = 0;
         for (String part : parts) {
-            result = result * 60 + Long.parseLong(part);
+            try {
+                result = Math.addExact(Math.multiplyExact(result, 60), Long.parseLong(part.trim()));
+            }
+            catch (NumberFormatException | ArithmeticException ex) {
+                return 0;
+            }
         }
         return result;
     }
@@ -168,6 +182,19 @@ public class BilibiliApiClient {
     @FunctionalInterface
     interface HttpTransport {
         String get(String url, String cookie) throws IOException, InterruptedException;
+    }
+
+    static final class HttpStatusException extends IOException {
+        private final int statusCode;
+
+        HttpStatusException(int statusCode) {
+            super("Bilibili HTTP status " + statusCode);
+            this.statusCode = statusCode;
+        }
+
+        int statusCode() {
+            return statusCode;
+        }
     }
 
     private static final class JdkHttpTransport implements HttpTransport {
@@ -188,7 +215,7 @@ public class BilibiliApiClient {
             HttpResponse<String> response = client.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException("Bilibili HTTP status " + response.statusCode());
+                throw new HttpStatusException(response.statusCode());
             }
             return response.body();
         }

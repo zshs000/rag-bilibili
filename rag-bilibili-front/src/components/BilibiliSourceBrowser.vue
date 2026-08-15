@@ -247,7 +247,11 @@ async function loadVideos(generation = ++requestGeneration) {
   try {
     let result;
     if (sourceMode.value === "favorite") {
-      if (!folderId.value) return;
+      if (!folderId.value) {
+        pageData.value = null;
+        inlineError.value = "请先获取并选择收藏夹。";
+        return;
+      }
       result = await bilibiliSourcesApi.favoriteVideos(folderId.value, {
         page: currentPage.value,
         pageSize,
@@ -288,6 +292,7 @@ function resetResults() {
   pageData.value = null;
   currentPage.value = 1;
   inlineError.value = "";
+  selectedVideos.value = new Map();
 }
 
 function toggleVideo(video, checked) {
