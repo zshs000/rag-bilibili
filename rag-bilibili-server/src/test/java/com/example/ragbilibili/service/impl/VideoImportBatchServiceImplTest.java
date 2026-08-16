@@ -7,6 +7,9 @@ import com.example.ragbilibili.mapper.VideoImportBatchMapper;
 import com.example.ragbilibili.mapper.VideoImportItemMapper;
 import com.example.ragbilibili.service.BatchCredentialCipher;
 import com.example.ragbilibili.service.VideoImportBatchScheduler;
+import com.example.ragbilibili.service.RagDependencyProvider;
+import com.example.ragbilibili.vectorstore.dashvector.DashVectorStore;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,7 +35,14 @@ class VideoImportBatchServiceImplTest {
     @Mock private VideoImportItemMapper itemMapper;
     @Mock private BatchCredentialCipher credentialCipher;
     @Mock private VideoImportBatchScheduler scheduler;
+    @Mock private RagDependencyProvider ragDependencyProvider;
+    @Mock private DashVectorStore dashVectorStore;
     @InjectMocks private VideoImportBatchServiceImpl service;
+
+    @BeforeEach
+    void setUpRagDependencies() {
+        org.mockito.Mockito.lenient().when(ragDependencyProvider.requireVectorStore()).thenReturn(dashVectorStore);
+    }
 
     @Test
     void createsBatchAndSchedulesWork() {
@@ -46,6 +56,17 @@ class VideoImportBatchServiceImplTest {
         assertThat(service.createBatch(request, 7L).getId()).isEqualTo(10L);
 
         verify(scheduler).dispatch();
+    }
+
+    @Test
+    void rejectsBeforeEncryptingCredentialsWhenRagIsUnavailable() {
+        when(ragDependencyProvider.requireVectorStore())
+                .thenThrow(new BusinessException(com.example.ragbilibili.exception.ErrorCode.RAG_UNAVAILABLE));
+
+        assertThatThrownBy(() -> service.createBatch(request(List.of("BV1xx411c7mD")), 7L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(4003);
+        verify(credentialCipher, never()).encrypt(any());
     }
 
     @Test

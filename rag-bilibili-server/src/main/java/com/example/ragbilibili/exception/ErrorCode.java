@@ -36,7 +36,8 @@ public enum ErrorCode {
 
     // 向量相关
     VECTOR_DELETE_FAILED(4001, "向量删除失败"),
-    VECTOR_WRITE_FAILED(4002, "向量写入失败");
+    VECTOR_WRITE_FAILED(4002, "向量写入失败"),
+    RAG_UNAVAILABLE(4003, "RAG服务暂不可用");
 
     private final Integer code;
     private final String message;

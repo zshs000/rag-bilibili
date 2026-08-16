@@ -13,6 +13,7 @@ import com.example.ragbilibili.service.BatchCredentialCipher;
 import com.example.ragbilibili.service.BatchImportCredentials;
 import com.example.ragbilibili.service.VideoImportBatchScheduler;
 import com.example.ragbilibili.service.VideoImportBatchService;
+import com.example.ragbilibili.service.RagDependencyProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +31,7 @@ public class VideoImportBatchServiceImpl implements VideoImportBatchService {
     @Autowired private VideoImportItemMapper itemMapper;
     @Autowired private BatchCredentialCipher credentialCipher;
     @Autowired private VideoImportBatchScheduler scheduler;
+    @Autowired private RagDependencyProvider ragDependencyProvider;
 
     @Override
     public VideoImportBatchResponse createBatch(CreateVideoImportBatchRequest request, Long userId) {
@@ -43,6 +45,8 @@ public class VideoImportBatchServiceImpl implements VideoImportBatchService {
         if (inputs.size() > MAX_BATCH_SIZE) {
             throw new BusinessException(ErrorCode.VIDEO_IMPORT_BATCH_LIMIT_EXCEEDED);
         }
+
+        ragDependencyProvider.requireVectorStore();
 
         String ciphertext = credentialCipher.encrypt(new BatchImportCredentials(
                 request.getSessdata(), request.getBiliJct(), request.getBuvid3()));

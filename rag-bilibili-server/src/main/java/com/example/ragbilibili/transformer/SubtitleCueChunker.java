@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.reader.bilibili.BilibiliSubtitleTrack;
 import com.example.ragbilibili.config.SubtitleChunkingProperties;
 import org.springframework.ai.tokenizer.JTokkitTokenCountEstimator;
 import org.springframework.ai.tokenizer.TokenCountEstimator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ public class SubtitleCueChunker {
     private final SubtitleChunkingProperties properties;
     private final TokenCountEstimator tokenCountEstimator;
 
+    @Autowired
     public SubtitleCueChunker(SubtitleChunkingProperties properties) {
         this(properties, new JTokkitTokenCountEstimator());
     }

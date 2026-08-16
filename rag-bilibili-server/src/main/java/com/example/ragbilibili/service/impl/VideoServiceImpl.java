@@ -19,6 +19,7 @@ import com.example.ragbilibili.mapper.VideoMapper;
 import com.example.ragbilibili.probe.PlaywrightSubtitleProbeService;
 import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.service.VideoService;
+import com.example.ragbilibili.service.RagDependencyProvider;
 import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import com.example.ragbilibili.transformer.SubtitleCueChunker;
 import com.example.ragbilibili.transformer.TimestampedSubtitleChunk;
@@ -53,7 +54,7 @@ public class VideoServiceImpl implements VideoService {
     private SubtitleCueChunker subtitleCueChunker;
 
     @Autowired
-    private DashVectorStore dashVectorStore;
+    private RagDependencyProvider ragDependencyProvider;
 
     @Autowired
     private VideoStatusWriter videoStatusWriter;
@@ -73,6 +74,7 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public VideoResponse importVideo(ImportVideoRequest request, Long userId) {
         String bvid = BVIDParser.parse(request.getBvidOrUrl());
+        DashVectorStore dashVectorStore = ragDependencyProvider.requireVectorStore();
         Video video = null;
         PreparedVideoImportData prepared = null;
         boolean vectorWritten = false;
@@ -91,7 +93,7 @@ public class VideoServiceImpl implements VideoService {
             throw e;
         } catch (Exception e) {
             log.error("视频导入失败: userId={}, bvid={}", userId, bvid, e);
-            handleImportFailure(video, prepared, vectorWritten, e);
+            handleImportFailure(video, prepared, vectorWritten, e, dashVectorStore);
             throw new BusinessException(ErrorCode.VIDEO_IMPORT_FAILED);
         }
 
@@ -120,6 +122,12 @@ public class VideoServiceImpl implements VideoService {
         List<String> vectorIds = videoDeleteTxService.deleteVideoData(videoId, userId);
 
         if (!vectorIds.isEmpty()) {
+            DashVectorStore dashVectorStore = ragDependencyProvider.vectorStoreIfAvailable();
+            if (dashVectorStore == null) {
+                log.warn("视频DB已删除，RAG服务不可用，向量等待后续清理: userId={}, videoId={}, vectorCount={}",
+                        userId, videoId, vectorIds.size());
+                return;
+            }
             try {
                 dashVectorStore.delete(vectorIds);
                 log.info("视频向量删除成功: userId={}, videoId={}, vectorCount={}", userId, videoId, vectorIds.size());
@@ -226,7 +234,8 @@ public class VideoServiceImpl implements VideoService {
     private void handleImportFailure(Video video,
                                      PreparedVideoImportData prepared,
                                      boolean vectorWritten,
-                                     Exception exception) {
+                                     Exception exception,
+                                     DashVectorStore dashVectorStore) {
         if (vectorWritten && prepared != null && !prepared.getVectorIds().isEmpty()) {
             try {
                 dashVectorStore.delete(prepared.getVectorIds());
