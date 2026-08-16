@@ -28,6 +28,9 @@
 | 2006 | 导入批次不存在 |
 | 2007 | 批量导入数量超限 |
 | 2008 | 批量导入凭证加密配置无效 |
+| 2009 | B站来源请求失败 |
+| 2010 | B站登录凭证无效 |
+| 2011 | B站请求被风控限制 |
 | 3001 | 会话不存在 |
 | 3002 | 会话类型错误 |
 | 4001 | 向量删除失败 |
@@ -185,6 +188,68 @@ POST /api/video-import-batches/{id}/retry-failed
 ```
 
 需要登录。仅将该批次的 `FAILED` 明细重新置为 `QUEUED` 并唤醒后台处理，不复制成功或已跳过项。响应 data：更新后的 `VideoImportBatchResponse`。批次不存在或不属于当前用户时返回 `2006`。
+
+### 获取当前账号收藏夹
+
+```http
+POST /api/bilibili-sources/favorite-folders
+```
+
+需要应用登录。请求体必须包含有效的 B站三项 Cookie；凭证仅用于本次请求，不持久化、不返回。
+
+```json
+{ "sessdata": "xxx", "biliJct": "xxx", "buvid3": "xxx" }
+```
+
+响应 data：
+
+```json
+[{ "id": 2438609241, "title": "默认收藏夹", "mediaCount": 170, "privateFolder": false }]
+```
+
+### 获取收藏夹视频
+
+```http
+POST /api/bilibili-sources/favorite-folders/{folderId}/videos
+```
+
+需要应用登录。`folderId` 必须大于 0；`page` 从 1 开始，默认 1；`pageSize` 默认 20，范围 1～20。
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "sessdata": "xxx",
+  "biliJct": "xxx",
+  "buvid3": "xxx"
+}
+```
+
+响应 data：`BilibiliVideoPageResponse`。
+
+### 获取 UP 主视频
+
+```http
+POST /api/bilibili-sources/up-videos
+```
+
+需要应用登录。`up` 接受纯数字 UID 或 `https://space.bilibili.com/{uid}`。`useCredentials=false` 时三项 Cookie 可省略；若匿名请求被 B站限制，可改为登录模式。
+
+```json
+{
+  "up": "https://space.bilibili.com/1045711541",
+  "page": 1,
+  "pageSize": 20,
+  "useCredentials": true,
+  "sessdata": "xxx",
+  "biliJct": "xxx",
+  "buvid3": "xxx"
+}
+```
+
+响应 data：`BilibiliVideoPageResponse`。
+
+上述三个接口可能返回：`2009`（上游异常或响应结构无效）、`2010`（B站登录凭证失效）、`2011`（B站风控限制）。
 
 ---
 
@@ -380,6 +445,31 @@ data: {"type":"error","message":"错误信息"}
 - `PARTIAL_FAILED`：全部明细结束且至少一项为 `FAILED`。
 
 明细 `status`：`QUEUED` / `RUNNING` / `SUCCEEDED` / `SKIPPED` / `FAILED`。时间字段格式与其他 REST 响应一致，均为 `yyyy-MM-dd HH:mm:ss`。
+
+### BilibiliVideoPageResponse
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "total": 170,
+  "hasMore": true,
+  "items": [
+    {
+      "bvid": "BV1UJc2ezEFU",
+      "title": "视频标题",
+      "coverUrl": "https://i0.hdslb.com/bfs/archive/example.jpg",
+      "durationSeconds": 26587,
+      "ownerMid": 302417610,
+      "ownerName": "UP主名称",
+      "publishTime": 1736906441,
+      "unavailable": false
+    }
+  ]
+}
+```
+
+`publishTime` 为 Unix 秒时间戳。收藏夹中已失效或无 BV 的项目会标记 `unavailable=true`，前端不得选择。
 
 ### MessageResponse
 
