@@ -20,6 +20,8 @@ import com.example.ragbilibili.probe.SubtitleProbeResult;
 import com.example.ragbilibili.transformer.SubtitleCleaningTransformer;
 import com.example.ragbilibili.transformer.SubtitleCueChunker;
 import com.example.ragbilibili.transformer.TimestampedSubtitleChunk;
+import com.example.ragbilibili.service.RagDependencyProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -68,6 +70,9 @@ class VideoServiceImplTest {
     private DashVectorStore dashVectorStore;
 
     @Mock
+    private RagDependencyProvider ragDependencyProvider;
+
+    @Mock
     private VideoStatusWriter videoStatusWriter;
 
     @Mock
@@ -84,6 +89,24 @@ class VideoServiceImplTest {
 
     @InjectMocks
     private VideoServiceImpl videoService;
+
+    @BeforeEach
+    void setUpRagDependencies() {
+        org.mockito.Mockito.lenient().when(ragDependencyProvider.requireVectorStore()).thenReturn(dashVectorStore);
+        org.mockito.Mockito.lenient().when(ragDependencyProvider.vectorStoreIfAvailable()).thenReturn(dashVectorStore);
+    }
+
+    @Test
+    void importVideoShouldRejectBeforeCreatingDataWhenRagIsUnavailable() {
+        when(ragDependencyProvider.requireVectorStore())
+                .thenThrow(new BusinessException(ErrorCode.RAG_UNAVAILABLE));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> videoService.importVideo(buildRequest(), 1L));
+
+        assertEquals(4003, exception.getCode());
+        verify(videoImportTxService, never()).createImportingVideo(any(), any());
+    }
 
     @Test
     void importVideoShouldInsertVideoAfterFetchingTitle() {

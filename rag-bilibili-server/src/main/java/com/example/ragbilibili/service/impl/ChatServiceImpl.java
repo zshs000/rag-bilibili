@@ -20,6 +20,7 @@ import com.example.ragbilibili.service.ChatService;
 import com.example.ragbilibili.service.CitationService;
 import com.example.ragbilibili.service.RetrievedSourceCandidate;
 import com.example.ragbilibili.service.RetrievedSourceResolution;
+import com.example.ragbilibili.service.RagDependencyProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,10 +57,7 @@ public class ChatServiceImpl implements ChatService {
     private VideoMapper videoMapper;
 
     @Autowired
-    private DashVectorStore dashVectorStore;
-
-    @Autowired
-    private ChatClient.Builder chatClientBuilder;
+    private RagDependencyProvider ragDependencyProvider;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -86,6 +84,9 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
         }
 
+        DashVectorStore dashVectorStore = ragDependencyProvider.requireVectorStore();
+        ChatClient.Builder chatClientBuilder = ragDependencyProvider.requireChatClientBuilder();
+
         // 2. 保存用户消息
         Message userMessage = new Message();
         userMessage.setSessionId(sessionId);
@@ -107,7 +108,7 @@ public class ChatServiceImpl implements ChatService {
                         .data(objectMapper.writeValueAsString(startEvent)));
 
                 // 6. RAG 检索
-                List<Document> relevantDocs = retrieveRelevantDocuments(session, content, userId);
+                List<Document> relevantDocs = retrieveRelevantDocuments(session, content, userId, dashVectorStore);
 
                 RetrievedSourceResolution sourceResolution = citationService.resolve(relevantDocs, userId);
                 List<RetrievedSourceCandidate> sourceCandidates = sourceResolution.candidates();
@@ -213,7 +214,8 @@ public class ChatServiceImpl implements ChatService {
     /**
      * 检索相关文档
      */
-    private List<Document> retrieveRelevantDocuments(Session session, String query, Long userId) {
+    private List<Document> retrieveRelevantDocuments(Session session, String query, Long userId,
+                                                      DashVectorStore dashVectorStore) {
         FilterExpressionBuilder filterExpressionBuilder = new FilterExpressionBuilder();
 
         if (session.getSessionType().equals(SessionType.SINGLE_VIDEO.getCode())) {
